@@ -12,9 +12,10 @@ import (
 	"time"
 )
 
-// ContentSecurityPolicy is sent with every response.
+// ContentSecurityPolicy is sent with every response. Images are same-origin
+// only: posters and covers come through the artwork proxy.
 const ContentSecurityPolicy = "default-src 'self'; " +
-	"img-src 'self' data: https://image.tmdb.org https://coverartarchive.org; " +
+	"img-src 'self' data:; " +
 	"style-src 'self' 'unsafe-inline'; " +
 	"connect-src 'self'; " +
 	"frame-ancestors 'none'; " +

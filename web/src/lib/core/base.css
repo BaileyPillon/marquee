@@ -57,10 +57,15 @@ svg {
   flex: 0 0 auto;
 }
 
-/* Keyboard focus: accent outline everywhere. */
+/* Keyboard focus: accent outline everywhere (3:1 or better against every surface). */
 :focus-visible {
-  outline: 2px solid var(--accent);
+  outline: var(--focus-ring);
   outline-offset: 2px;
+}
+
+/* A field's outline hugs its border, so the ring reads as part of the control. */
+input:focus-visible {
+  outline-offset: 1px;
 }
 
 /* The main region takes focus after a route change; it needs no ring. */

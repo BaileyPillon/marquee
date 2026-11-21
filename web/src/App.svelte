@@ -1,23 +1,39 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
-  import Home from './pages/Home.svelte';
+  import { onMount, tick } from 'svelte';
   import NotFound from './pages/NotFound.svelte';
+  import { pages } from './pages/registry';
   import Stub from './pages/Stub.svelte';
   import PhoneHeader from './lib/ui/PhoneHeader.svelte';
   import Rail from './lib/ui/Rail.svelte';
   import TabBar from './lib/ui/TabBar.svelte';
   import TopBar from './lib/ui/TopBar.svelte';
-  import { health } from './lib/core/api';
+  import { ping } from './lib/core/api';
   import { t } from './lib/core/i18n';
   import { isDesktop } from './lib/core/media';
   import { current, navigate, startRouter } from './lib/core/router';
-  import { badges, owner } from './lib/mock/shell';
+  import { session } from './lib/core/session.svelte';
+  import { badges } from './lib/mock/shell';
 
   const match = $derived($current);
   let main: HTMLElement | undefined = $state();
   let offline = $state(false);
 
-  onMount(() => startRouter());
+  // The rail's owner block and the phone avatar: the real person, once the server has said who.
+  const owner = $derived(
+    session.me
+      ? {
+          name: session.me.name,
+          initial: ([...session.me.name.trim()][0] ?? '?').toUpperCase(),
+          role: session.me.role,
+        }
+      : undefined,
+  );
+
+  onMount(() => {
+    const stop = startRouter();
+    void session.start();
+    return stop;
+  });
 
   // Tab title follows the route.
   $effect(() => {
@@ -36,7 +52,8 @@
       return;
     }
     window.scrollTo(0, 0);
-    main?.focus({ preventScroll: true });
+    // Wait for the new page to be in place (the shell may have just appeared) before focusing.
+    void tick().then(() => main?.focus({ preventScroll: true }));
   });
 
   // Is the server there? Home keeps showing mock data either way.
@@ -46,12 +63,13 @@
     const controller = new AbortController();
 
     async function check(): Promise<void> {
-      try {
-        await health(controller.signal);
-        if (alive) offline = false;
-      } catch {
-        if (!alive) return;
-        offline = true;
+      const up = await ping(controller.signal);
+      if (!alive) return;
+      offline = !up;
+      if (up) {
+        // The server came back after we could not ask it who we are.
+        if (session.status === 'offline') void session.start();
+      } else {
         timer = window.setTimeout(check, 15000);
       }
     }
@@ -76,39 +94,51 @@
   }
 </script>
 
-<a class="skip" href="#main" onclick={skip}>{t('a11y.skip')}</a>
+{#if session.status === 'loading'}
+  <!-- Waiting to hear who this is: show nothing rather than a page that may be about to change. -->
+  <div class="boot" role="status"><span class="sr-only">{t('boot.loading')}</span></div>
+{:else if match.route.fullScreen}
+  <!-- Setup, sign-in and invite: no rail, no tabs. The page draws its own whole screen. -->
+  {@const Page = pages[match.route.name] ?? Stub}
+  <Page {match} />
+{:else}
+  <a class="skip" href="#main" onclick={skip}>{t('a11y.skip')}</a>
 
-<div class="shell" class:phone={!$isDesktop}>
-  {#if $isDesktop}
-    <Rail active={match.route.section} {badges} {owner} {offline} />
-  {/if}
-
-  <div class="col">
-    {#if !$isDesktop}
-      <PhoneHeader {owner} {offline} />
+  <div class="shell" class:phone={!$isDesktop}>
+    {#if $isDesktop}
+      <Rail active={match.route.section} {badges} {owner} {offline} />
     {/if}
 
-    <main id="main" tabindex="-1" bind:this={main}>
-      {#if $isDesktop && match.route.topBar}
-        <TopBar onask={() => navigate('/explore')} />
+    <div class="col">
+      {#if !$isDesktop}
+        <PhoneHeader {owner} {offline} />
       {/if}
 
-      {#if match.route.name === 'home'}
-        <Home />
-      {:else if match.route.name === 'notFound'}
-        <NotFound />
-      {:else}
-        <Stub {match} />
-      {/if}
-    </main>
+      <main id="main" tabindex="-1" bind:this={main}>
+        {#if $isDesktop && match.route.topBar}
+          <TopBar onask={() => navigate('/explore')} />
+        {/if}
+
+        {#if match.route.name === 'notFound'}
+          <NotFound />
+        {:else}
+          {@const Page = pages[match.route.name] ?? Stub}
+          <Page {match} />
+        {/if}
+      </main>
+    </div>
+
+    {#if !$isDesktop}
+      <TabBar active={match.route.section} />
+    {/if}
   </div>
-
-  {#if !$isDesktop}
-    <TabBar active={match.route.section} />
-  {/if}
-</div>
+{/if}
 
 <style>
+  .boot {
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
   .shell {
     display: flex;
     min-height: 100vh;

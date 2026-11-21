@@ -1,4 +1,5 @@
 <script lang="ts">
+  import AccountMenu from '../accounts/AccountMenu.svelte';
   import Icon from './Icon.svelte';
   import OfflineNote from './OfflineNote.svelte';
   import SearchField from './SearchField.svelte';
@@ -6,7 +7,8 @@
   import { t } from '../core/i18n';
 
   interface Props {
-    owner: { name: string; initial: string };
+    /** The signed-in person; the avatar menu is left out while there is none (server offline). */
+    owner?: { name: string; initial: string; role: 'owner' | 'admin' | 'member' };
     offline?: boolean;
   }
 
@@ -46,9 +48,7 @@
       >
         <Icon name={open ? 'close' : 'search'} size={22} />
       </button>
-      <a class="icon-btn" href="/settings" aria-label={t('a11y.profile', { name: owner.name })}>
-        <span class="avatar" aria-hidden="true">{owner.initial}</span>
-      </a>
+      {#if owner}<AccountMenu {owner} variant="phone" />{/if}
     </div>
   </header>
   <div id={searchId} class="search-row" hidden={!open}>
@@ -94,19 +94,6 @@
   }
   .icon-btn:hover {
     background: var(--hover);
-    color: var(--text);
-  }
-  .avatar {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 34px;
-    height: 34px;
-    border-radius: 50%;
-    background: var(--avatar);
-    font-size: 14px;
-    font-weight: 600;
-    line-height: 1;
     color: var(--text);
   }
   .search-row {

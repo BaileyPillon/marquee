@@ -1,0 +1,15 @@
+{
+  "id": "c0000000-0000-4000-8000-000000000211",
+  "title": "Études, Op. 10",
+  "status": "Official",
+  "date": "1985-06-01",
+  "media": [
+    {
+      "position": 1,
+      "tracks": [
+        { "position": 1, "title": "Étude in C major, Op. 10 No. 1", "length": 142000, "recording": { "id": "e0000000-0000-4000-8000-000000000411", "length": 142000 } },
+        { "position": 2, "title": "Étude in A minor, Op. 10 No. 2", "length": 88000, "recording": { "id": "e0000000-0000-4000-8000-000000000412" } }
+      ]
+    }
+  ]
+}

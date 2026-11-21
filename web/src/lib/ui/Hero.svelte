@@ -3,7 +3,7 @@
   import HeroArt from './HeroArt.svelte';
   import Icon from './Icon.svelte';
   import { t } from '../core/i18n';
-  import type { HeroTheme } from '../core/types';
+  import type { PanelTheme } from '../core/types';
 
   interface Props {
     title: string;
@@ -13,20 +13,54 @@
     /** One line under the title: year, kind, credit. */
     meta: string;
     blurb: string;
-    theme: HeroTheme;
+    theme: PanelTheme;
     /** home: 44 to 64px title. title: 48 to 80px, for a title's own page. */
     size?: 'home' | 'title';
     actions?: Snippet;
     chips?: Snippet;
+    /** Replaces the skyline: an <ArtPanel> with the title's own composition. */
+    art?: Snippet;
+    /** Name of the region. Defaults to "Featured title". */
+    label?: string;
+    /** Minimum height of the panel in px. */
+    minHeight?: number;
+    /** Top and bottom padding of the text column in px. */
+    padY?: number;
+    /** Widest the blurb may be, in px. */
+    blurbWidth?: number;
+    /** Space under the panel in px. */
+    gap?: number;
+    /** The meta line: soft is a little lighter, for a panel with a pale ground. */
+    metaTone?: 'default' | 'soft';
   }
 
-  let { title, year, status, meta, blurb, theme, size = 'home', actions, chips }: Props = $props();
+  let {
+    title,
+    year,
+    status,
+    meta,
+    blurb,
+    theme,
+    size = 'home',
+    actions,
+    chips,
+    art,
+    label,
+    minHeight = 290,
+    padY = 22,
+    blurbWidth = 480,
+    gap = 22,
+    metaTone = 'default',
+  }: Props = $props();
 </script>
 
-<div class="wrap">
+<div class="wrap" style:--hero-gap="{gap}px">
   <section
     class="hero {size}"
-    aria-label={t('hero.label')}
+    aria-label={label ?? t('hero.label')}
+    style:--hero-min={`${minHeight}px`}
+    style:--hero-pad-y={`${padY}px`}
+    style:--hero-blurb={`${blurbWidth}px`}
     style:--hero-bg={theme.bg}
     style:--hero-art-bg={theme.artBg}
     style:--hero-disc={theme.disc}
@@ -40,13 +74,13 @@
       </div>
       <h1>{title}</h1>
       <div class="rule"></div>
-      <div class="meta">{meta}</div>
+      <div class="meta" class:soft={metaTone === 'soft'}>{meta}</div>
       <p class="blurb">{blurb}</p>
       {#if chips}<div class="chips">{@render chips()}</div>{/if}
       {#if actions}<div class="actions">{@render actions()}</div>{/if}
     </div>
     <div class="art" aria-hidden="true">
-      <HeroArt {year} />
+      {#if art}{@render art()}{:else}<HeroArt {year} />{/if}
     </div>
   </section>
 </div>
@@ -54,13 +88,13 @@
 <style>
   .wrap {
     container-type: inline-size;
-    margin-bottom: 22px;
+    margin-bottom: var(--hero-gap);
   }
   .hero {
     position: relative;
     display: flex;
     flex-wrap: wrap;
-    min-height: 290px;
+    min-height: var(--hero-min);
     overflow: hidden;
     border-radius: var(--radius-lg);
     background: var(--hero-bg);
@@ -72,7 +106,7 @@
     display: flex;
     flex-direction: column;
     justify-content: center;
-    padding: 22px clamp(20px, 3vw, 40px);
+    padding: var(--hero-pad-y) clamp(20px, 3vw, 40px);
   }
   .status {
     display: flex;
@@ -108,8 +142,11 @@
     line-height: 18px;
     color: var(--text-3);
   }
+  .meta.soft {
+    color: var(--text-2);
+  }
   .blurb {
-    max-width: 480px;
+    max-width: var(--hero-blurb);
     font-size: 14.5px;
     font-weight: 400;
     line-height: 21px;
@@ -131,7 +168,7 @@
     position: relative;
     flex: 0 0 520px;
     max-width: 100%;
-    min-height: 290px;
+    min-height: var(--hero-min);
     overflow: hidden;
     background: var(--hero-art-bg);
   }
@@ -179,7 +216,7 @@
 
   @media (max-width: 899.98px) {
     .wrap {
-      margin-bottom: 18px;
+      margin-bottom: min(var(--hero-gap), 18px);
     }
   }
 </style>

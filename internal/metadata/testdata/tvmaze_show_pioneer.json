@@ -1,0 +1,45 @@
+{
+  "id": 99001,
+  "name": "Pioneer One",
+  "type": "Scripted",
+  "language": "English",
+  "genres": ["Drama", "Science-Fiction"],
+  "status": "Ended",
+  "runtime": null,
+  "averageRuntime": 47,
+  "premiered": "2010-06-19",
+  "ended": "2011-02-06",
+  "network": null,
+  "webChannel": { "id": 77, "name": "VODO" },
+  "externals": { "tvrage": null, "thetvdb": 99991, "imdb": "tt9900001" },
+  "image": {
+    "medium": "https://static.tvmaze.com/uploads/images/medium_portrait/99/99001.jpg",
+    "original": "https://static.tvmaze.com/uploads/images/original_untouched/99/99001.jpg"
+  },
+  "summary": "<p>When a mysterious object crashes in the Canadian wilderness, a <b>team of agents</b> is sent to find out why.</p>",
+  "_embedded": {
+    "seasons": [
+      {
+        "id": 501, "number": 1, "name": "", "episodeOrder": 2,
+        "premiereDate": "2010-06-19", "endDate": "2010-07-03",
+        "image": { "medium": "https://static.tvmaze.com/uploads/images/medium_portrait/99/s1.jpg", "original": "https://static.tvmaze.com/uploads/images/original_untouched/99/s1.jpg" }
+      },
+      {
+        "id": 502, "number": 2, "name": "Second Wave", "episodeOrder": 5,
+        "premiereDate": "2011-01-30", "endDate": null,
+        "image": null
+      }
+    ],
+    "episodes": [
+      { "id": 9001, "name": "Earthfall", "season": 1, "number": 1, "type": "regular", "airdate": "2010-06-19", "runtime": 45, "summary": "<p>An object falls to Earth.</p>" },
+      { "id": 9002, "name": "Anomalies", "season": 1, "number": 2, "type": "regular", "airdate": "2010-07-03", "runtime": null, "summary": null },
+      { "id": 9003, "name": "Behind the Scenes", "season": 1, "number": null, "type": "significant_special", "airdate": "2010-07-10", "runtime": 12, "summary": "<p>The crew talks.</p>" },
+      { "id": 9004, "name": "Landing Zone", "season": 2, "number": 1, "type": "regular", "airdate": "2011-01-30", "runtime": 47, "summary": "<p>Second wave.</p>" },
+      { "id": 9005, "name": "Landing Zone (duplicate listing)", "season": 2, "number": 1, "type": "regular", "airdate": "2011-01-30", "runtime": 47, "summary": "" }
+    ],
+    "cast": [
+      { "person": { "id": 1, "name": "Joanna Gaskell", "image": { "medium": "https://static.tvmaze.com/uploads/images/medium_portrait/1/p1.jpg", "original": "https://static.tvmaze.com/uploads/images/original_untouched/1/p1.jpg" } }, "character": { "id": 11, "name": "Agent Taylor" } },
+      { "person": { "id": 2, "name": "Alex Gordon", "image": null }, "character": { "id": 12, "name": "Tom Hawkins" } }
+    ]
+  }
+}

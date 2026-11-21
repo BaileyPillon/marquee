@@ -118,13 +118,26 @@ func serve(ctx context.Context, log *slog.Logger, addr, configDir string) error 
 	}
 
 	// Services, bottom layer up.
-	_ = outbound.New(version, outbound.Options{Logger: log}) // used by later modules
+	hc := outbound.New(version, outbound.Options{Logger: log})
 	hub := events.NewHub(log)
 	acc := accounts.NewService(mainDB, accounts.Options{Logger: log})
 	cfg := settings.New(mainDB, box)
+	meta, catalog, err := newCatalog(mainDB, hc, cfg, absConfig, log)
+	if err != nil {
+		return err
+	}
+
+	lib := newLibrary(mainDB, hub, catalog, log)
+	defer lib.Close()
 
 	sched := jobs.New(log)
 	if err := sched.Every("accounts-cleanup", time.Hour, acc.Cleanup); err != nil {
+		return err
+	}
+	if err := registerCatalogJobs(sched, meta, catalog); err != nil {
+		return err
+	}
+	if err := registerLibraryJobs(sched, lib); err != nil {
 		return err
 	}
 	sched.Start()
@@ -142,6 +155,9 @@ func serve(ctx context.Context, log *slog.Logger, addr, configDir string) error 
 		Accounts: acc,
 		Settings: cfg,
 		Hub:      hub,
+		Metadata: meta,
+		Titles:   catalog,
+		Library:  lib,
 		UI:       dist,
 	})
 

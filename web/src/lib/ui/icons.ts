@@ -25,6 +25,20 @@ export const icons = {
   back: 'M15 6l-6 6 6 6',
   chevron: 'M9 6l6 6-6 6',
   clock: 'M12 4a8 8 0 1 0 0 16 8 8 0 0 0 0-16z M12 8v4.5l3 1.5',
+  time: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z M12 7.5V12l3 2',
+  playOutline: 'M8 5.5v13l10-6.5z',
+  trailer: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z M10 8.5v7l6-3.5z',
+  file: 'M6 3h8l4 4v14H6z M14 3v4h4',
+  rules: 'M4 8h16 M4 16h16 M9 5v6 M15 13v6',
+  sliders: 'M4 7h9 M17 7h3 M4 17h3 M11 17h9 M15 4v6 M9 14v6',
+  send: 'M21 3L10 14 M21 3l-7 18-4-7-7-4z',
+  refresh: 'M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8 M21 3v5h-5',
+  warning: 'M12 4l9 16H3L12 4z M12 10v4 M12 17.5v.01',
+  upgrade: 'M12 19V5 M6 11l6-6 6 6',
+  arrow: 'M5 12h14 M13 6l6 6-6 6',
+  alert: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z M12 7.5v5.5 M12 16.5h.01',
+  lock: 'M5 11h14v10H5z M8 11V7a4 4 0 0 1 8 0v4',
+  signOut: 'M10 4H5v16h5 M15 8l4 4-4 4 M19 12H9',
 } as const;
 
 export type IconName = keyof typeof icons;

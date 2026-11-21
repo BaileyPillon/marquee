@@ -1,4 +1,4 @@
-export type TitleKind = 'movie' | 'tv';
+export type TitleKind = 'movie' | 'tv' | 'artist';
 
 /** What a poster's badge shows. Downloading carries its percentage. */
 export type Status =
@@ -32,6 +32,10 @@ export interface HeroTheme {
   towerA: string;
   towerB: string;
 }
+
+/** What a title panel needs at minimum; the skyline art also reads the other three colours. */
+export type PanelTheme = Pick<HeroTheme, 'bg' | 'artBg'> &
+  Partial<Pick<HeroTheme, 'disc' | 'towerA' | 'towerB'>>;
 
 export interface FeaturedTitle {
   id: string;

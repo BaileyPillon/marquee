@@ -254,7 +254,7 @@ func TestSecurityHeadersOnEveryResponse(t *testing.T) {
 		}
 	}
 	for _, want := range []string{
-		"default-src 'self'", "img-src 'self' data: https://image.tmdb.org https://coverartarchive.org",
+		"default-src 'self'", "img-src 'self' data:;",
 		"style-src 'self' 'unsafe-inline'", "connect-src 'self'", "frame-ancestors 'none'", "base-uri 'self'",
 	} {
 		if !strings.Contains(ContentSecurityPolicy, want) {

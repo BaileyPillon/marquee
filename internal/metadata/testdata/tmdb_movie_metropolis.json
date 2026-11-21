@@ -1,0 +1,47 @@
+{
+  "id": 19,
+  "imdb_id": "tt0017136",
+  "title": "Metropolis",
+  "original_title": "Metropolis",
+  "release_date": "1927-01-10",
+  "overview": "In a futuristic city sharply divided between the rich and the poor, the son of the city's mastermind falls in love with a prophet.",
+  "tagline": "There can be no understanding between the hands and the brain unless the heart acts as mediator.",
+  "runtime": 153,
+  "status": "Released",
+  "poster_path": "/metropolis1927.jpg",
+  "backdrop_path": "/metropolis1927-bd.jpg",
+  "genres": [{ "id": 18, "name": "Drama" }, { "id": 878, "name": "Science Fiction" }],
+  "credits": {
+    "cast": [
+      { "name": "Alfred Abel", "character": "Joh Fredersen", "profile_path": "/abel.jpg", "order": 1 },
+      { "name": "Brigitte Helm", "character": "Maria / Robot Maria", "profile_path": "/helm.jpg", "order": 0 },
+      { "name": "Extra Without Photo", "character": "Worker", "profile_path": null, "order": 2 }
+    ],
+    "crew": [
+      { "name": "Fritz Lang", "job": "Director", "department": "Directing", "profile_path": "/lang.jpg" },
+      { "name": "Thea von Harbou", "job": "Screenplay", "department": "Writing", "profile_path": null },
+      { "name": "Erich Pommer", "job": "Producer", "department": "Production", "profile_path": null }
+    ]
+  },
+  "release_dates": {
+    "results": [
+      { "iso_3166_1": "DE", "release_dates": [{ "certification": "12", "type": 3 }] },
+      {
+        "iso_3166_1": "US",
+        "release_dates": [
+          { "certification": "", "type": 1 },
+          { "certification": "NR", "type": 3 },
+          { "certification": "G", "type": 5 }
+        ]
+      }
+    ]
+  },
+  "videos": {
+    "results": [
+      { "key": "teaserKEY01", "site": "YouTube", "type": "Teaser", "official": true },
+      { "key": "vimeoKEY", "site": "Vimeo", "type": "Trailer", "official": true },
+      { "key": "fanTrailer1", "site": "YouTube", "type": "Trailer", "official": false },
+      { "key": "trailerKEY1", "site": "YouTube", "type": "Trailer", "official": true }
+    ]
+  }
+}

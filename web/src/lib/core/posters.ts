@@ -77,7 +77,12 @@ export function posterTitleSize(title: string, size: PosterSize): number {
   return titleSize(title);
 }
 
+/** Mock stage: every id shows the same title, so every poster links to id 1 of its kind. */
+const MOCK_ID = '1';
+
 /** Detail page for a poster item. */
 export function titleHref(item: Pick<PosterItem, 'kind' | 'id'>): string {
-  return `/${item.kind === 'tv' ? 'tv' : 'movies'}/${encodeURIComponent(item.id)}`;
+  if (item.kind === 'tv') return `/tv/${MOCK_ID}`;
+  if (item.kind === 'artist') return `/music/artists/${MOCK_ID}`;
+  return `/movies/${MOCK_ID}`;
 }

@@ -1,0 +1,46 @@
+{
+  "id": "c0000000-0000-4000-8000-000000000203",
+  "title": "Nocturnes",
+  "status": "Official",
+  "date": "1998-03-10",
+  "media": [
+    {
+      "position": 1,
+      "format": "CD",
+      "track-count": 2,
+      "tracks": [
+        {
+          "id": "d0000000-0000-4000-8000-000000000301",
+          "position": 1,
+          "number": "1",
+          "title": "Nocturne in B-flat minor, Op. 9 No. 1",
+          "length": 330000,
+          "recording": { "id": "e0000000-0000-4000-8000-000000000401", "title": "Nocturne in B-flat minor, Op. 9 No. 1", "length": 330000 }
+        },
+        {
+          "id": "d0000000-0000-4000-8000-000000000302",
+          "position": 2,
+          "number": "2",
+          "title": "Nocturne in E-flat major, Op. 9 No. 2",
+          "length": null,
+          "recording": { "id": "e0000000-0000-4000-8000-000000000402", "title": "Nocturne in E-flat major, Op. 9 No. 2", "length": 262000 }
+        }
+      ]
+    },
+    {
+      "position": 2,
+      "format": "CD",
+      "track-count": 1,
+      "tracks": [
+        {
+          "id": "d0000000-0000-4000-8000-000000000303",
+          "position": 1,
+          "number": "1",
+          "title": "Nocturne in B major, Op. 9 No. 3",
+          "length": 410000,
+          "recording": { "id": "e0000000-0000-4000-8000-000000000403", "title": "Nocturne in B major, Op. 9 No. 3", "length": 410000 }
+        }
+      ]
+    }
+  ]
+}

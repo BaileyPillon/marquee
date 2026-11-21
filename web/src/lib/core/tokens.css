@@ -13,7 +13,12 @@
   --hairline: #26231f;
   --hairline-strong: #2a2825;
   --input: #1e1c1a;
-  --input-border: #3a3733;
+  /*
+   * Input outline. WCAG 1.4.11 asks 3:1 against what it touches. The old #3a3733 gave 1.58:1 on
+   * --ground and 1.44:1 on --input. This warm grey (the same hue family) gives 3.50:1 on --ground
+   * (#131211), 3.18:1 on --input (#1e1c1a), 3.25:1 on --panel and 3.38:1 on --rail.
+   */
+  --input-border: #706a62;
   --nav-active: #26231f;
   --tab-active: #2b2722;
   --avatar: #3a352e;
@@ -31,6 +36,14 @@
   --accent: #e9a23b;
   --accent-hover: #f5c77a;
   --on-accent: #131211;
+  --focus-ring: 2px solid var(--accent);
+
+  /* Errors (8.3:1 on --input, 9.2:1 on --ground) */
+  --danger: #f4a08f;
+
+  /* Setup steps: idle progress bar, and the outline of a step that has not started */
+  --step-bar: #3a3733;
+  --step-ring: #78726a;
 
   /* Lines and overlays */
   --line: rgba(242, 237, 228, 0.55);
@@ -40,6 +53,14 @@
   --track-faint: rgba(242, 237, 228, 0.18);
   --poster-edge: rgba(242, 237, 228, 0.16);
   --scrim: rgba(19, 18, 17, 0.84);
+  --line-chip: rgba(242, 237, 228, 0.45);
+  --line-dim: rgba(242, 237, 228, 0.4);
+  --line-faint: rgba(242, 237, 228, 0.35);
+  --line-soft: rgba(242, 237, 228, 0.7);
+
+  /* Dialogs: the dimmed page behind a sheet, and its grab handle */
+  --overlay: rgba(10, 9, 8, 0.6);
+  --sheet-handle: #4a4640;
 
   /* Radii */
   --radius-sm: 6px;
@@ -57,6 +78,17 @@
   --rail-width: 232px;
   --header-height: 64px;
   --tabbar-height: 72px;
+
+  /* Theatre art on the setup, sign-in and invite screens (A-FirstRun, A-SignIn) */
+  --art-bg: #1e0b0f;
+  --art-moon: #341218;
+  --art-curtain-a: #6b1f26;
+  --art-curtain-b: #5a1a21;
+  --art-curtain-fold: #7a2730;
+  --art-valance: #4a161c;
+  --art-tower-a: #150708;
+  --art-tower-b: #3a1318;
+  --art-floor: #130809;
 
   /* Poster colours, keyed by title slug (see posters.ts: posterColor) */
   --poster-metropolis: #1d2f55;

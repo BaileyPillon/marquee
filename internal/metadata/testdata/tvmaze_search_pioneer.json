@@ -1,0 +1,41 @@
+[
+  {
+    "score": 1.1894,
+    "show": {
+      "id": 99001,
+      "name": "Pioneer One",
+      "type": "Scripted",
+      "language": "English",
+      "genres": ["Drama", "Science-Fiction"],
+      "status": "Ended",
+      "runtime": null,
+      "averageRuntime": 47,
+      "premiered": "2010-06-19",
+      "ended": "2011-02-06",
+      "webChannel": { "id": 77, "name": "VODO" },
+      "network": null,
+      "externals": { "tvrage": null, "thetvdb": 99991, "imdb": "tt9900001" },
+      "image": {
+        "medium": "https://static.tvmaze.com/uploads/images/medium_portrait/99/99001.jpg",
+        "original": "https://static.tvmaze.com/uploads/images/original_untouched/99/99001.jpg"
+      },
+      "summary": "<p>When a mysterious object crashes in the Canadian wilderness, a <b>team of agents</b> is sent to find out why &amp; what it means.</p>"
+    }
+  },
+  {
+    "score": 0.3141,
+    "show": {
+      "id": 99002,
+      "name": "Pioneer One: The Making Of",
+      "language": "English",
+      "genres": [],
+      "status": "Ended",
+      "premiered": null,
+      "network": { "id": 5, "name": "CBC" },
+      "webChannel": null,
+      "externals": { "thetvdb": null, "imdb": null },
+      "image": null,
+      "summary": null
+    }
+  }
+]

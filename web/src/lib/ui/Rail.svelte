@@ -1,4 +1,5 @@
 <script lang="ts">
+  import AccountMenu from '../accounts/AccountMenu.svelte';
   import Badge from './Badge.svelte';
   import Icon from './Icon.svelte';
   import OfflineNote from './OfflineNote.svelte';
@@ -12,7 +13,8 @@
     active: Section | null;
     /** Count shown on an item, by section (Requests: asks waiting for the owner). */
     badges?: Partial<Record<Section, number>>;
-    owner: { name: string; initial: string; role: 'owner' | 'admin' | 'member' };
+    /** The signed-in person; the account menu is left out while there is none (server offline). */
+    owner?: { name: string; initial: string; role: 'owner' | 'admin' | 'member' };
     offline?: boolean;
   }
 
@@ -52,12 +54,11 @@
   <div class="foot">
     <div class="note"><OfflineNote {offline} /></div>
     <nav class="settings" aria-label={t('nav.settingsLabel')}>{@render item(settingsItem)}</nav>
-    <div class="owner-block">
-      <a class="owner" href="/settings">
-        <span class="avatar" aria-hidden="true">{owner.initial}</span>
-        <span class="who">{owner.name}<span class="role">{` · ${t(`role.${owner.role}`)}`}</span></span>
-      </a>
-    </div>
+    {#if owner}
+      <div class="owner-block">
+        <AccountMenu {owner} variant="rail" />
+      </div>
+    {/if}
   </div>
 </aside>
 
@@ -143,41 +144,5 @@
   .owner-block {
     padding-top: 14px;
     border-top: 1px solid var(--hairline);
-  }
-  .owner {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 8px 10px;
-    border-radius: var(--radius-sm);
-    color: var(--text);
-    text-decoration: none;
-  }
-  .owner:hover {
-    background: var(--hover);
-    color: var(--text);
-  }
-  .avatar {
-    flex: 0 0 auto;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 34px;
-    height: 34px;
-    border-radius: 50%;
-    background: var(--avatar);
-    font-size: 14px;
-    font-weight: 600;
-    line-height: 1;
-    color: var(--text);
-  }
-  .who {
-    font-size: 14px;
-    font-weight: 500;
-    line-height: 18px;
-    color: var(--text);
-  }
-  .role {
-    color: var(--muted);
   }
 </style>

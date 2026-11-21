@@ -6,6 +6,11 @@ import { svelte } from '@sveltejs/vite-plugin-svelte';
 export default defineConfig({
   base: '/',
   plugins: [svelte()],
+  // Dev only (`npm run dev`): the page comes from Vite and /api goes to a running Marquee server.
+  // A production build never sees this; the Go binary serves both from one origin.
+  server: {
+    proxy: { '/api': 'http://127.0.0.1:6465' },
+  },
   build: {
     outDir: 'dist',
     emptyOutDir: true,

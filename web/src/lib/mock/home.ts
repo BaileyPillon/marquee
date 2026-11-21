@@ -1,31 +1,7 @@
 // Mock data for Home, reproduced from the approved Cinema canvas (Main.dc.html).
 // Strings here are content (what the server will send), not interface text.
-import { slugify } from '../core/posters';
-import type {
-  CaptionTone,
-  ComingEvent,
-  FeaturedTitle,
-  PosterItem,
-  PosterRowData,
-  Status,
-  TitleKind,
-} from '../core/types';
-
-function item(
-  title: string,
-  year: string,
-  status: Status,
-  caption: string,
-  tone: CaptionTone,
-  kind: TitleKind = 'movie',
-): PosterItem {
-  return { id: slugify(title), kind, title, year, status, caption, tone };
-}
-
-const library: Status = { kind: 'library' };
-const requested: Status = { kind: 'requested' };
-const missing: Status = { kind: 'missing' };
-const downloading = (pct: number): Status => ({ kind: 'downloading', pct });
+import type { ComingEvent, FeaturedTitle, PosterRowData } from '../core/types';
+import { downloading, item, library, missing, requested } from './poster';
 
 export const featured: FeaturedTitle = {
   id: 'metropolis',

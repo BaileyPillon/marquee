@@ -31,6 +31,9 @@ export type RouteName =
   | 'downloads'
   | 'calendar'
   | 'settings'
+  | 'setup'
+  | 'signin'
+  | 'invite'
   | 'notFound';
 
 export interface RouteDef {
@@ -43,6 +46,11 @@ export interface RouteDef {
   section: Section | null;
   /** Desktop search bar and "Ask for…" above the page. */
   topBar: boolean;
+  /**
+   * A full-screen page: no rail, no tab bar, and it is open to people who are not signed in
+   * (setup, sign-in, invite). The page draws its own whole screen.
+   */
+  fullScreen?: boolean;
 }
 
 export const routes: readonly RouteDef[] = [
@@ -88,6 +96,30 @@ export const routes: readonly RouteDef[] = [
     title: 'route.settings',
     section: 'settings',
     topBar: false,
+  },
+  {
+    name: 'setup',
+    path: '/setup',
+    title: 'route.setup',
+    section: null,
+    topBar: false,
+    fullScreen: true,
+  },
+  {
+    name: 'signin',
+    path: '/signin',
+    title: 'route.signin',
+    section: null,
+    topBar: false,
+    fullScreen: true,
+  },
+  {
+    name: 'invite',
+    path: '/invite/:token',
+    title: 'route.invite',
+    section: null,
+    topBar: false,
+    fullScreen: true,
   },
 ];
 

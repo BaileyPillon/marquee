@@ -1,0 +1,14 @@
+{
+  "id": "c0000000-0000-4000-8000-000000000221",
+  "title": "Ballades (sampler)",
+  "status": "Promotion",
+  "date": "2003-02-02",
+  "media": [
+    {
+      "position": 1,
+      "tracks": [
+        { "position": 1, "title": "Ballade No. 1 in G minor, Op. 23", "length": 570000, "recording": { "id": "e0000000-0000-4000-8000-000000000421" } }
+      ]
+    }
+  ]
+}

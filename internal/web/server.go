@@ -14,7 +14,10 @@ import (
 
 	"github.com/BaileyPillon/marquee/internal/accounts"
 	"github.com/BaileyPillon/marquee/internal/core/events"
+	"github.com/BaileyPillon/marquee/internal/library"
+	"github.com/BaileyPillon/marquee/internal/metadata"
 	"github.com/BaileyPillon/marquee/internal/settings"
+	"github.com/BaileyPillon/marquee/internal/titles"
 )
 
 // Deps is everything the server needs.
@@ -27,6 +30,9 @@ type Deps struct {
 	Accounts *accounts.Service
 	Settings *settings.Service
 	Hub      *events.Hub
+	Metadata *metadata.Service
+	Titles   *titles.Service
+	Library  *library.Service
 	// UI is the built single-page app, rooted so that index.html is at its top.
 	UI fs.FS
 }
@@ -76,6 +82,12 @@ func (s *Server) Handler() http.Handler {
 	owner := guard{roles: []accounts.Role{accounts.RoleOwner}, scope: accounts.ScopeSettings}
 	api.HandleFunc("GET /api/v1/settings/{section}", s.guarded(owner, s.handleSettingsGet))
 	api.HandleFunc("PUT /api/v1/settings/{section}", s.guarded(owner, s.handleSettingsPut))
+
+	// Catalog, search and artwork (api_titles.go).
+	s.registerTitles(api)
+
+	// Library folders, scans and files (api_library.go).
+	s.registerLibrary(api)
 
 	// Anything else under /api/ is a JSON 404, never the UI.
 	api.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {

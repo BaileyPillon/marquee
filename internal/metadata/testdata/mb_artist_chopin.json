@@ -1,0 +1,19 @@
+{
+  "id": "a1b2c3d4-0000-4000-8000-000000000001",
+  "type": "Person",
+  "name": "Frédéric Chopin",
+  "sort-name": "Chopin, Frédéric",
+  "country": "PL",
+  "disambiguation": "Polish composer and pianist",
+  "life-span": { "begin": "1810-03-01", "end": "1849-10-17", "ended": true },
+  "genres": [
+    { "name": "classical", "count": 12 },
+    { "name": "romantic", "count": 4 }
+  ],
+  "aliases": [
+    { "name": "Fryderyk Chopin", "type": "Legal name" },
+    { "name": "F. Chopin" },
+    { "name": "frédéric chopin" },
+    { "name": "Chopin" }
+  ]
+}

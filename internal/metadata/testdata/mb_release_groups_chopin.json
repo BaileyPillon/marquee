@@ -1,0 +1,41 @@
+{
+  "release-group-count": 5,
+  "release-group-offset": 0,
+  "release-groups": [
+    {
+      "id": "b0000000-0000-4000-8000-000000000101",
+      "title": "Nocturnes",
+      "primary-type": "Album",
+      "secondary-types": [],
+      "first-release-date": "1998-03-10"
+    },
+    {
+      "id": "b0000000-0000-4000-8000-000000000102",
+      "title": "Études, Op. 10",
+      "primary-type": "Album",
+      "secondary-types": [],
+      "first-release-date": "1985"
+    },
+    {
+      "id": "b0000000-0000-4000-8000-000000000103",
+      "title": "Ballades (sampler)",
+      "primary-type": "EP",
+      "secondary-types": [],
+      "first-release-date": ""
+    },
+    {
+      "id": "b0000000-0000-4000-8000-000000000104",
+      "title": "Live in Warsaw",
+      "primary-type": "Album",
+      "secondary-types": ["Live"],
+      "first-release-date": "2005-10-01"
+    },
+    {
+      "id": "b0000000-0000-4000-8000-000000000105",
+      "title": "A Single Waltz",
+      "primary-type": "Single",
+      "secondary-types": [],
+      "first-release-date": "2001-01-01"
+    }
+  ]
+}
