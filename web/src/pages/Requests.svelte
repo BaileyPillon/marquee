@@ -126,7 +126,7 @@
   {#if view}
     {#if $isDesktop}
       <div class="head">
-        <PageHeader title={t('route.requests')} subtitle={summary} />
+        <PageHeader title={t('route.requests')} subtitle={summary} preview />
       </div>
 
       <div class="tabs">

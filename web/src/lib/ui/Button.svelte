@@ -15,6 +15,8 @@
     pill?: boolean;
     /** Render a link instead of a button. */
     href?: string;
+    /** The link leaves Marquee: it opens in a new tab. */
+    external?: boolean;
     type?: 'button' | 'submit';
     block?: boolean;
     disabled?: boolean;
@@ -29,6 +31,7 @@
     icon = false,
     pill = false,
     href,
+    external = false,
     type = 'button',
     block = false,
     disabled = false,
@@ -39,7 +42,17 @@
 </script>
 
 {#if href}
-  <a class="btn {variant} {size}" class:block class:icon class:pill {href} aria-label={ariaLabel} {onclick}>
+  <a
+    class="btn {variant} {size}"
+    class:block
+    class:icon
+    class:pill
+    {href}
+    target={external ? '_blank' : undefined}
+    rel={external ? 'noopener noreferrer' : undefined}
+    aria-label={ariaLabel}
+    {onclick}
+  >
     {@render children()}
   </a>
 {:else}

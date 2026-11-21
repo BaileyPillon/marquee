@@ -1,5 +1,6 @@
 <script lang="ts">
   import PosterCard from './PosterCard.svelte';
+  import PreviewTag from './PreviewTag.svelte';
   import { titleHref } from '../core/posters';
   import { t } from '../core/i18n';
   import type { PosterItem } from '../core/types';
@@ -9,9 +10,11 @@
     /** Where "See all" goes. */
     href: string;
     items: PosterItem[];
+    /** The row still shows sample content: it gets a small "Preview" tag. */
+    preview?: boolean;
   }
 
-  let { title, href, items }: Props = $props();
+  let { title, href, items, preview = false }: Props = $props();
 
   const uid = $props.id();
   const headingId = `row-${uid}`;
@@ -19,7 +22,10 @@
 
 <section class="row" aria-labelledby={headingId}>
   <div class="head">
-    <h2 id={headingId}>{title}</h2>
+    <h2 id={headingId}>
+      {title}
+      {#if preview}<span class="tag"><PreviewTag /></span>{/if}
+    </h2>
     <a class="all" {href}>{t('action.seeAll')}</a>
   </div>
   <ul class="scroller">
@@ -32,6 +38,7 @@
           status={item.status}
           caption={item.caption}
           tone={item.tone}
+          imageRef={item.imageRef}
         />
       </li>
     {/each}
@@ -54,6 +61,11 @@
     font-weight: 600;
     line-height: 24px;
     color: var(--text);
+  }
+  .tag {
+    display: inline-block;
+    margin-left: 8px;
+    vertical-align: 2px;
   }
   .all {
     font-size: 13px;

@@ -7,6 +7,8 @@ export interface NavItem {
   href: string;
   label: MessageKey;
   icon: IconName;
+  /** Stroke width of the icon, for a glyph (the three dots) that needs a heavier line. */
+  iconStroke?: number;
 }
 
 export interface NavGroup {
@@ -54,10 +56,26 @@ export const settingsItem: NavItem = {
   icon: 'settings',
 };
 
-/** Phone bottom tabs, as on the phone Home of the canvas. */
-export const tabItems: NavItem[] = [
+/**
+ * Phone bottom tabs, as on the phone Home of the canvas. They differ by role: an owner or admin
+ * runs the server (Requests to decide, Downloads to watch, More for Settings); a member asks for
+ * things and sees their own asks and profile.
+ */
+const memberTabs: NavItem[] = [
   { section: 'home', href: '/', label: 'tabs.home', icon: 'home' },
   { section: 'explore', href: '/explore', label: 'tabs.explore', icon: 'explore' },
   { section: 'requests', href: '/requests', label: 'tabs.asks', icon: 'requests' },
   { section: 'settings', href: '/settings', label: 'tabs.profile', icon: 'profile' },
 ];
+
+const managerTabs: NavItem[] = [
+  { section: 'home', href: '/', label: 'tabs.home', icon: 'home' },
+  { section: 'explore', href: '/explore', label: 'tabs.explore', icon: 'explore' },
+  { section: 'requests', href: '/requests', label: 'tabs.requests', icon: 'requests' },
+  { section: 'downloads', href: '/downloads', label: 'tabs.downloads', icon: 'downloads' },
+  { section: 'settings', href: '/settings', label: 'tabs.more', icon: 'more', iconStroke: 3 },
+];
+
+export function tabItemsFor(role: 'owner' | 'admin' | 'member' | null | undefined): NavItem[] {
+  return role === 'owner' || role === 'admin' ? managerTabs : memberTabs;
+}

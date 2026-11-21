@@ -55,7 +55,8 @@ export interface RouteDef {
 
 export const routes: readonly RouteDef[] = [
   { name: 'home', path: '/', title: 'route.home', section: 'home', topBar: true },
-  { name: 'explore', path: '/explore', title: 'route.explore', section: 'explore', topBar: true },
+  // Explore is its own search page: its large search field replaces the top bar's.
+  { name: 'explore', path: '/explore', title: 'route.explore', section: 'explore', topBar: false },
   { name: 'popular', path: '/popular', title: 'route.popular', section: 'popular', topBar: true },
   { name: 'movies', path: '/movies', title: 'route.movies', section: 'movies', topBar: true },
   { name: 'movie', path: '/movies/:id', title: 'route.movie', section: 'movies', topBar: false },
@@ -67,7 +68,7 @@ export const routes: readonly RouteDef[] = [
     path: '/music/artists/:id',
     title: 'route.artist',
     section: 'music',
-    topBar: false,
+    topBar: true,
   },
   {
     name: 'requests',
@@ -95,7 +96,7 @@ export const routes: readonly RouteDef[] = [
     path: '/settings',
     title: 'route.settings',
     section: 'settings',
-    topBar: false,
+    topBar: true,
   },
   {
     name: 'setup',

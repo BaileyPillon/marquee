@@ -6,22 +6,37 @@
   import PageSkeleton from '../lib/ui/PageSkeleton.svelte';
   import Panel from '../lib/ui/Panel.svelte';
   import Tabs, { type TabItem } from '../lib/ui/Tabs.svelte';
-  import TopBar from '../lib/ui/TopBar.svelte';
+  import { getMetadataStatus } from '../lib/core/catalog';
   import { t } from '../lib/core/i18n';
-  import { isDesktop } from '../lib/core/media';
+  import { providerRows } from '../lib/core/providerRows';
   import { resource } from '../lib/core/resource.svelte.ts';
-  import { navigate } from '../lib/core/router';
-  import { getSettings } from '../lib/mock/settings';
+  import { navigate, type Match } from '../lib/core/router';
+  import { session } from '../lib/core/session.svelte';
+  import type { ConnectionRow } from '../lib/core/views';
+  import { getSettingsPreview } from '../lib/mock/settings';
   import ConnectionPanel from './settings/ConnectionPanel.svelte';
+  import FoldersPanel from './settings/FoldersPanel.svelte';
   import KeysPanel from './settings/KeysPanel.svelte';
+  import ProfilePanel from './settings/ProfilePanel.svelte';
+  import TitleInfoPanel from './settings/TitleInfoPanel.svelte';
 
-  const page = resource(() => 'settings', () => getSettings());
-  const view = $derived(page.data);
+  interface Props {
+    match: Match;
+  }
 
-  // Only Connections has content so far. The other tabs say so.
+  let { match }: Props = $props();
+
+  const role = $derived(session.me?.role);
+  const isOwner = $derived(role === 'owner');
+  // A member has no server settings: Settings is their profile.
+  const isMember = $derived(role === 'member');
+
+  // Folders and Title info are live. The rest of Connections shows sample panels tagged "Preview",
+  // and the other tabs say they are coming.
   const tabs = $derived<TabItem[]>([
     { id: 'connections', label: t('settings.tab.connections') },
     { id: 'folders', label: t('settings.tab.folders') },
+    { id: 'title-info', label: t('settings.tab.titleInfo') },
     { id: 'quality', label: t('settings.tab.quality') },
     { id: 'people', label: t('settings.tab.people') },
     { id: 'subtitles', label: t('settings.tab.subtitles') },
@@ -29,60 +44,92 @@
     { id: 'language', label: t('settings.tab.language') },
     { id: 'about', label: t('settings.tab.about') },
   ]);
-  let tab = $state('connections');
+  // The address says which tab is open, so a link can land on one (Explore links to Title info).
+  const tab = $derived.by(() => {
+    const wanted = match.query.get('tab');
+    return tabs.find((item) => item.id === wanted)?.id ?? 'connections';
+  });
   const tabName = $derived(tabs.find((item) => item.id === tab)?.label ?? '');
+
+  function choose(id: string): void {
+    navigate(id === 'connections' ? '/settings' : `/settings?tab=${id}`, { replace: true });
+  }
+
+  // Connections: sample panels for what is not built, the real Title info status.
+  const preview = resource(() => 'preview', () => getSettingsPreview());
+  // Asked again each time Connections opens, so a key saved on Title info shows here at once.
+  const info = resource(
+    () => (tab === 'connections' && !isMember ? 'info' : 'idle'),
+    (key, signal) => (key === 'info' ? getMetadataStatus(signal) : Promise.resolve(undefined)),
+  );
+  const view = $derived(preview.data);
+  const infoRows = $derived<ConnectionRow[]>(info.data ? providerRows(info.data) : []);
+
+  function editInfoRow(row: ConnectionRow): void {
+    if (row.name === 'TMDB') choose('title-info');
+  }
 </script>
 
-<!-- The router does not show the search bar here (it is off for Settings), so the page brings its own. -->
-{#if $isDesktop}
-  <TopBar onask={() => navigate('/explore')} />
-{/if}
-
-<PageHeader title={t('route.settings')} scale="large" gap={18} />
-
-<div class="tabs">
-  <Tabs
-    kind="nav"
-    items={tabs}
-    value={tab}
-    onchange={(id) => (tab = id)}
-    label={t('settings.sections')}
-    prefix="settings"
-  />
-</div>
-
-{#if tab !== 'connections'}
-  <Panel tag="div" padding="18px">
-    <p class="soon"><span class="sr-only">{tabName}: </span>{t('settings.soon')}</p>
-  </Panel>
-{:else if view}
-  <div class="grid">
-    <ConnectionPanel title={t('settings.panel.apps')} rows={view.downloadApps} />
-    <ConnectionPanel title={t('settings.panel.servers')} rows={view.mediaServers} />
-    <ConnectionPanel
-      title={t('settings.panel.sources')}
-      rows={view.sources}
-      note={t('settings.note.sources')}
-    >
-      {#snippet action()}
-        <Button size="sm">
-          <Icon name="plus" size={16} stroke={2.2} />
-          {t('settings.addSource')}
-        </Button>
-      {/snippet}
-    </ConnectionPanel>
-    <ConnectionPanel
-      title={t('settings.panel.info')}
-      rows={view.titleInfo}
-      note={t('settings.note.info')}
-    />
-    <KeysPanel keys={view.keys} />
-    <ConnectionPanel title={t('settings.panel.alerts')} rows={view.alerts} />
-  </div>
-{:else if page.failed}
-  <LoadFailed onretry={page.reload} />
+{#if isMember}
+  <PageHeader title={t('tabs.profile')} scale="large" gap={18} />
+  <ProfilePanel />
 {:else}
-  <PageSkeleton cards={4} />
+  <PageHeader title={t('route.settings')} scale="large" gap={18} />
+
+  <div class="tabs">
+    <Tabs
+      kind="nav"
+      items={tabs}
+      value={tab}
+      onchange={choose}
+      label={t('settings.sections')}
+      prefix="settings"
+    />
+  </div>
+
+  {#if tab === 'folders'}
+    <FoldersPanel canEdit={isOwner} />
+  {:else if tab === 'title-info'}
+    <TitleInfoPanel {isOwner} />
+  {:else if tab !== 'connections'}
+    <Panel tag="div" padding="18px">
+      <p class="soon"><span class="sr-only">{tabName}: </span>{t('settings.soon')}</p>
+    </Panel>
+  {:else if view}
+    <div class="grid">
+      <ConnectionPanel title={t('settings.panel.apps')} rows={view.downloadApps} preview />
+      <ConnectionPanel title={t('settings.panel.servers')} rows={view.mediaServers} preview />
+      <ConnectionPanel
+        title={t('settings.panel.sources')}
+        rows={view.sources}
+        note={t('settings.note.sources')}
+        preview
+      >
+        {#snippet action()}
+          <Button size="sm" disabled>
+            <Icon name="plus" size={16} stroke={2.2} />
+            {t('settings.addSource')}
+          </Button>
+        {/snippet}
+      </ConnectionPanel>
+      {#if info.data}
+        <ConnectionPanel
+          title={t('settings.panel.info')}
+          rows={infoRows}
+          note={t('settings.note.info')}
+          onrow={isOwner ? editInfoRow : undefined}
+        />
+      {:else if info.failed}
+        <LoadFailed onretry={info.reload} />
+      {/if}
+      <KeysPanel keys={view.keys} />
+      <ConnectionPanel title={t('settings.panel.alerts')} rows={view.alerts} preview />
+    </div>
+  {:else if preview.failed}
+    <LoadFailed onretry={preview.reload} />
+  {:else}
+    <PageSkeleton cards={4} />
+  {/if}
 {/if}
 
 <style>

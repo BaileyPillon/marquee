@@ -60,7 +60,7 @@
 </script>
 
 {#if view}
-  <PageHeader title={t('route.downloads')} subtitle={summary} scale="large" />
+  <PageHeader title={t('route.downloads')} subtitle={summary} scale="large" preview />
 
   <div class="cols">
     <div class="main">

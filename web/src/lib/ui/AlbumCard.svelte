@@ -1,4 +1,5 @@
 <script lang="ts">
+  import ArtImage from './ArtImage.svelte';
   import Badge from './Badge.svelte';
   import { titleSize } from '../core/posters';
   import { t } from '../core/i18n';
@@ -6,7 +7,8 @@
   import type { Status } from '../core/types';
 
   interface Props {
-    href: string;
+    /** Where the card leads; without it the card is not a link (there is no album page yet). */
+    href?: string;
     title: string;
     /** Years recorded, e.g. "1830–1846". */
     years: string;
@@ -17,32 +19,36 @@
     caption: string;
     /** Under the caption: how many tracks. */
     detail: string;
+    /** The real cover (an artwork ref), over the typographic cover. */
+    imageRef?: string;
   }
 
-  let { href, title, years, status, color, caption, detail }: Props = $props();
+  let { href, title, years, status, color, caption, detail, imageRef }: Props = $props();
 
   // Albums are not "requested": the artist's page says they are wanted.
   const label = $derived(status.kind === 'requested' ? t('status.wanted') : statusLabel(status));
-  const fontSize = $derived(titleSize(title) + 3);
+  // A long real title gets a smaller size so four lines still fit the square cover.
+  const fontSize = $derived(title.length > 26 ? 17 : titleSize(title) + 3);
 </script>
 
-<a class="card" {href}>
+<svelte:element this={href ? 'a' : 'div'} class="card" {href}>
   <div class="cover" style:background={color}>
     <div class="ring big" aria-hidden="true"></div>
     <div class="ring small" aria-hidden="true"></div>
-    <div class="top"><Badge tone={statusTone(status)}>{label}</Badge></div>
     <div class="body">
       <div class="rule"></div>
       <div class="title" style:font-size="{fontSize}px">{title}</div>
       <div class="years">{years}</div>
     </div>
+    {#if imageRef}<ArtImage {imageRef} />{/if}
+    <div class="top"><Badge tone={statusTone(status)}>{label}</Badge></div>
     {#if status.kind === 'downloading'}
       <div class="progress" aria-hidden="true"><div style:width="{status.pct}%"></div></div>
     {/if}
   </div>
   <div class="caption">{caption}</div>
   <div class="detail">{detail}</div>
-</a>
+</svelte:element>
 
 <style>
   .card {
@@ -59,7 +65,7 @@
     box-sizing: border-box;
     display: flex;
     flex-direction: column;
-    justify-content: space-between;
+    justify-content: flex-end;
     width: 100%;
     aspect-ratio: 1 / 1;
     padding: 12px;
@@ -86,8 +92,12 @@
     height: 80px;
     border: 1px solid rgba(242, 237, 228, 0.18);
   }
+  /* The badge and the bar sit above the cover art; the type beneath it. */
   .top {
-    position: relative;
+    position: absolute;
+    left: 12px;
+    top: 12px;
+    z-index: 2;
     display: flex;
   }
   .body {
@@ -100,6 +110,12 @@
     background: var(--line-strong);
   }
   .title {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 4;
+    line-clamp: 4;
+    overflow: hidden;
+    overflow-wrap: break-word;
     font-family: var(--font-serif);
     font-weight: 400;
     line-height: 1.04;
@@ -118,6 +134,7 @@
     left: 0;
     right: 0;
     bottom: 0;
+    z-index: 2;
     height: 5px;
     background: var(--track);
   }

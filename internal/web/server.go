@@ -14,9 +14,14 @@ import (
 
 	"github.com/BaileyPillon/marquee/internal/accounts"
 	"github.com/BaileyPillon/marquee/internal/core/events"
+	"github.com/BaileyPillon/marquee/internal/decide"
+	"github.com/BaileyPillon/marquee/internal/downloads"
 	"github.com/BaileyPillon/marquee/internal/library"
 	"github.com/BaileyPillon/marquee/internal/metadata"
+	"github.com/BaileyPillon/marquee/internal/requests"
+	"github.com/BaileyPillon/marquee/internal/search"
 	"github.com/BaileyPillon/marquee/internal/settings"
+	"github.com/BaileyPillon/marquee/internal/sources"
 	"github.com/BaileyPillon/marquee/internal/titles"
 )
 
@@ -33,6 +38,15 @@ type Deps struct {
 	Metadata *metadata.Service
 	Titles   *titles.Service
 	Library  *library.Service
+	// Downloads is the download-client module (api_downloads.go); nil leaves
+	// the download routes out.
+	Downloads *downloads.Service
+	Requests  *requests.Service
+	// Sources, Decide and Search are the release-finding modules
+	// (api_sources.go); each one that is nil leaves its routes out.
+	Sources *sources.Service
+	Decide  *decide.Service
+	Search  *search.Service
 	// UI is the built single-page app, rooted so that index.html is at its top.
 	UI fs.FS
 }
@@ -88,6 +102,15 @@ func (s *Server) Handler() http.Handler {
 
 	// Library folders, scans and files (api_library.go).
 	s.registerLibrary(api)
+
+	// Downloads and download clients (api_downloads.go).
+	s.registerDownloads(api)
+
+	// Requests, approvals, people and limits (api_requests.go).
+	s.registerRequests(api)
+
+	// Sources, quality profiles, the blocklist and release search (api_sources.go).
+	s.registerSources(api)
 
 	// Anything else under /api/ is a JSON 404, never the UI.
 	api.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {

@@ -1,4 +1,6 @@
 <script lang="ts">
+  import PreviewTag from './PreviewTag.svelte';
+
   interface Props {
     title: string;
     subtitle?: string;
@@ -6,13 +8,18 @@
     scale?: 'default' | 'large';
     /** Space under the header in px. Defaults to 20 (24 when large). */
     gap?: number;
+    /** The page still shows sample content: a small "Preview" tag follows the heading. */
+    preview?: boolean;
   }
 
-  let { title, subtitle, scale = 'default', gap }: Props = $props();
+  let { title, subtitle, scale = 'default', gap, preview = false }: Props = $props();
 </script>
 
 <header class="head {scale}" style:margin-bottom={gap === undefined ? undefined : `${gap}px`}>
-  <h1>{title}</h1>
+  <h1>
+    {title}
+    {#if preview}<span class="tag"><PreviewTag /></span>{/if}
+  </h1>
   {#if subtitle}<p>{subtitle}</p>{/if}
 </header>
 
@@ -27,6 +34,11 @@
     line-height: 1.1;
     letter-spacing: 0.01em;
     color: var(--text);
+  }
+  .tag {
+    display: inline-block;
+    margin-left: 6px;
+    vertical-align: middle;
   }
   p {
     margin-top: 6px;

@@ -3,6 +3,7 @@
   import Button from '../../lib/ui/Button.svelte';
   import Chip from '../../lib/ui/Chip.svelte';
   import Panel from '../../lib/ui/Panel.svelte';
+  import PreviewTag from '../../lib/ui/PreviewTag.svelte';
   import SectionHead from '../../lib/ui/SectionHead.svelte';
   import StatusDot from '../../lib/ui/StatusDot.svelte';
   import { t } from '../../lib/core/i18n';
@@ -15,9 +16,13 @@
     action?: Snippet;
     /** A line under the rows. */
     note?: string;
+    /** The panel still shows sample content: it gets a "Preview" tag and its buttons are off. */
+    preview?: boolean;
+    /** What a row's button does. Without it the buttons are shown but off. */
+    onrow?: (row: ConnectionRow) => void;
   }
 
-  let { title, rows, action, note }: Props = $props();
+  let { title, rows, action, note, preview = false, onrow }: Props = $props();
 
   const uid = $props.id();
   const headId = `conn-${uid}`;
@@ -25,6 +30,7 @@
 
 <Panel labelledby={headId} padding="18px">
   <SectionHead {title} id={headId} size="md" align="center" gap={4} minHeight={36}>
+    {#if preview}<PreviewTag />{/if}
     {#if action}{@render action()}{/if}
   </SectionHead>
   <ul>
@@ -39,15 +45,17 @@
             <StatusDot kind={row.state === 'on' ? 'solid' : 'hollow'}>{row.status}</StatusDot>
           </div>
         </div>
-        <Button
-          size="compact"
-          aria-label={t('settings.rowAria', {
-            action: t(`settings.action.${row.action}`),
-            name: row.name,
-          })}
-        >
-          {t(`settings.action.${row.action}`)}
-        </Button>
+        {#if row.action}
+          {@const verb = t(`settings.action.${row.action}`)}
+          <Button
+            size="compact"
+            disabled={!onrow}
+            aria-label={t('settings.rowAria', { action: verb, name: row.name })}
+            onclick={() => onrow?.(row)}
+          >
+            {verb}
+          </Button>
+        {/if}
       </li>
     {/each}
   </ul>

@@ -15,9 +15,14 @@ export interface PosterItem {
   kind: TitleKind;
   title: string;
   year: string;
-  status: Status;
+  /** Left out: no badge (the library has no file information for this person). */
+  status?: Status;
   caption: string;
   tone: CaptionTone;
+  /** Where the card leads. Defaults to the page of the title with this id. */
+  href?: string;
+  /** The real artwork (an artwork ref), over the typographic poster. */
+  imageRef?: string;
 }
 
 /** Colours of a featured title's panel and its art. */
@@ -36,22 +41,6 @@ export interface HeroTheme {
 /** What a title panel needs at minimum; the skyline art also reads the other three colours. */
 export type PanelTheme = Pick<HeroTheme, 'bg' | 'artBg'> &
   Partial<Pick<HeroTheme, 'disc' | 'towerA' | 'towerB'>>;
-
-export interface FeaturedTitle {
-  id: string;
-  kind: TitleKind;
-  title: string;
-  year: number;
-  /** Quality of the copy in the library, e.g. "1080p". */
-  quality: string;
-  /** Media server that plays it, e.g. "Jellyfin". */
-  server: string;
-  /** Quality offered by the second button, e.g. "4K". */
-  askQuality: string;
-  meta: string;
-  blurb: string;
-  theme: HeroTheme;
-}
 
 export interface PosterRowData {
   id: string;

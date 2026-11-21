@@ -634,6 +634,60 @@ func (q queries) setMonitored(ctx context.Context, id int64, on bool) error {
 	return err
 }
 
+// monitorTitle turns the flag on for the title row itself.
+func (q queries) monitorTitle(ctx context.Context, id int64) error {
+	res, err := q.x.ExecContext(ctx, `UPDATE titles SET monitored = 1 WHERE id = ?`, id)
+	if err != nil {
+		return err
+	}
+	if n, err := res.RowsAffected(); err != nil {
+		return err
+	} else if n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// monitorSeasons turns monitoring on for a title and for some of its seasons
+// (and their episodes). The other seasons are left as they are.
+func (q queries) monitorSeasons(ctx context.Context, id int64, seasons []int) error {
+	if err := q.monitorTitle(ctx, id); err != nil {
+		return err
+	}
+	if len(seasons) == 0 {
+		return nil
+	}
+	args := []any{id}
+	for _, n := range seasons {
+		args = append(args, n)
+	}
+	in := placeholders(len(seasons))
+	if _, err := q.x.ExecContext(ctx,
+		`UPDATE seasons SET monitored = 1 WHERE title_id = ? AND number IN (`+in+`)`, args...); err != nil {
+		return err
+	}
+	_, err := q.x.ExecContext(ctx,
+		`UPDATE episodes SET monitored = 1 WHERE title_id = ? AND season IN (`+in+`)`, args...)
+	return err
+}
+
+// monitorAlbums turns monitoring on for a title and for some of its albums.
+func (q queries) monitorAlbums(ctx context.Context, id int64, albums []int64) error {
+	if err := q.monitorTitle(ctx, id); err != nil {
+		return err
+	}
+	if len(albums) == 0 {
+		return nil
+	}
+	args := []any{id}
+	for _, n := range albums {
+		args = append(args, n)
+	}
+	_, err := q.x.ExecContext(ctx,
+		`UPDATE albums SET monitored = 1 WHERE title_id = ? AND id IN (`+placeholders(len(albums))+`)`, args...)
+	return err
+}
+
 // delete removes a title; everything under it goes with it (foreign keys).
 func (q queries) delete(ctx context.Context, id int64) error {
 	res, err := q.x.ExecContext(ctx, `DELETE FROM titles WHERE id = ?`, id)

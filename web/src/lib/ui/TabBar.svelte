@@ -2,24 +2,28 @@
   import Icon from './Icon.svelte';
   import { t } from '../core/i18n';
   import type { Section } from '../core/router';
-  import { tabItems } from './nav';
+  import { tabItemsFor } from './nav';
 
   interface Props {
     active: Section | null;
+    /** Who is signed in: the tabs differ for an owner or admin and for a member. */
+    role?: 'owner' | 'admin' | 'member' | null;
     /** Count shown on a tab, by section. */
     badges?: Partial<Record<Section, number>>;
   }
 
-  let { active, badges = {} }: Props = $props();
+  let { active, role = null, badges = {} }: Props = $props();
+
+  const items = $derived(tabItemsFor(role));
 </script>
 
 <nav class="tabbar" aria-label={t('nav.main')}>
-  {#each tabItems as tab (tab.section)}
+  {#each items as tab (tab.section)}
     {@const current = tab.section === active}
     {@const count = badges[tab.section]}
     <a class="tab" class:current href={tab.href} aria-current={current ? 'page' : undefined}>
       <span class="pill">
-        <Icon name={tab.icon} size={24} />
+        <Icon name={tab.icon} size={24} stroke={tab.iconStroke ?? 1.75} />
         {#if count}<span class="count">{count}</span>{/if}
       </span>
       <span class="label">{t(tab.label)}</span>

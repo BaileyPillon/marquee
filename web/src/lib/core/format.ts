@@ -1,0 +1,126 @@
+// Small formatters for what the catalog and library APIs send: sizes, times, dates, run times.
+// Anything that carries words goes through t().
+import { t } from './i18n';
+import type { ApiKind, Title } from './catalog';
+
+/** 1_181_116_006 -> "1.1 GB". Binary units, as disks report them. */
+export function formatBytes(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes < 0) return '';
+  const units = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'];
+  let value = bytes;
+  let unit = 0;
+  while (value >= 1024 && unit < units.length - 1) {
+    value /= 1024;
+    unit += 1;
+  }
+  const digits = unit === 0 || value >= 100 ? 0 : 1;
+  return `${value.toFixed(digits)} ${units[unit]}`;
+}
+
+/** 153 -> "2 h 33 min"; 45 -> "45 min". Empty when unknown. */
+export function formatRuntime(minutes: number): string {
+  if (!minutes || minutes < 1) return '';
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  if (h === 0) return t('time.minutes', { m });
+  return m === 0 ? t('time.hours', { h }) : t('time.hoursMinutes', { h, m });
+}
+
+/** 274000 -> "4:34". Empty when unknown. */
+export function formatTrackLength(ms: number): string {
+  if (!ms || ms < 1) return '';
+  const total = Math.round(ms / 1000);
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
+}
+
+function parseDay(iso: string): Date | undefined {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
+  if (!m) return undefined;
+  return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+}
+
+function startOfToday(): Date {
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+}
+
+/** "2010-10-22" -> "Fri 22 Oct 2010" (the year is left out for this year). Empty when unknown. */
+export function formatAirDate(iso: string): string {
+  const day = parseDay(iso);
+  if (!day) return '';
+  const sameYear = day.getFullYear() === new Date().getFullYear();
+  return new Intl.DateTimeFormat(undefined, {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    ...(sameYear ? {} : { year: 'numeric' }),
+  }).format(day);
+}
+
+/** Has this day not come yet? A missing date counts as not upcoming. */
+export function isFuture(iso: string): boolean {
+  const day = parseDay(iso);
+  return !!day && day.getTime() > startOfToday().getTime();
+}
+
+/** "3 Nov", or "3 Nov 2025" for another year. */
+export function formatDay(iso: string): string {
+  const when = new Date(iso);
+  if (Number.isNaN(when.getTime())) return '';
+  const sameYear = when.getFullYear() === new Date().getFullYear();
+  return new Intl.DateTimeFormat(undefined, {
+    day: 'numeric',
+    month: 'short',
+    ...(sameYear ? {} : { year: 'numeric' }),
+  }).format(when);
+}
+
+/** "Added today", "Added yesterday", "Added 3 Nov". */
+export function formatAdded(iso: string): string {
+  const when = new Date(iso);
+  if (Number.isNaN(when.getTime())) return '';
+  const today = startOfToday();
+  const day = new Date(when.getFullYear(), when.getMonth(), when.getDate());
+  const days = Math.round((today.getTime() - day.getTime()) / 86_400_000);
+  if (days <= 0) return t('added.today');
+  if (days === 1) return t('added.yesterday');
+  return t('added.on', { date: formatDay(iso) });
+}
+
+/** "5 minutes ago", "2 h ago", "3 Nov": when something last worked. Empty when never. */
+export function formatAgo(iso: string | null | undefined): string {
+  if (!iso) return '';
+  const then = new Date(iso).getTime();
+  if (Number.isNaN(then)) return '';
+  const seconds = Math.max(0, Math.round((Date.now() - then) / 1000));
+  if (seconds < 90) return t('ago.moment');
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return t('ago.minutes', { n: minutes });
+  const hours = Math.round(minutes / 60);
+  if (hours < 36) return t('ago.hours', { n: hours });
+  return formatDay(iso);
+}
+
+/** The year line on a poster: "2010", "2010 · TV", or just "Artist". */
+export function posterYear(title: Pick<Title, 'kind' | 'year'>): string {
+  if (title.kind === 'artist') return t('poster.artist');
+  if (!title.year) return title.kind === 'show' ? t('poster.tv') : '';
+  return title.kind === 'show' ? t('poster.yearTv', { year: title.year }) : String(title.year);
+}
+
+/** What a kind is called in a sentence. */
+export function kindLabel(kind: ApiKind): string {
+  if (kind === 'show') return t('kind.show');
+  if (kind === 'artist') return t('kind.artist');
+  return t('kind.movie');
+}
+
+/** A short, stable plain-words count: "1 season", "3 seasons". */
+export function seasonCount(n: number): string {
+  return n === 1 ? t('show.seasonCountOne', { n }) : t('show.seasonCount', { n });
+}
+
+/** "ended" -> "Ended": the first letter in capitals (providers send statuses in lower case). */
+export function sentence(text: string): string {
+  return text ? text.charAt(0).toUpperCase() + text.slice(1) : text;
+}

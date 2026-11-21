@@ -15,12 +15,24 @@ export class ApiError extends Error {
   readonly code: string;
   /** Seconds to wait before trying again (from a `Retry-After` header), when the server sent one. */
   readonly retryAfter?: number;
+  /**
+   * Whatever else the error body carried (`used`, `limit` and `resetsAt` on a `limit_reached`).
+   * Fields of the error object and of the whole body are merged, so a caller need not know which.
+   */
+  readonly details: Readonly<Record<string, unknown>>;
 
-  constructor(status: number, code: string, message: string, retryAfter?: number) {
+  constructor(
+    status: number,
+    code: string,
+    message: string,
+    retryAfter?: number,
+    details: Record<string, unknown> = {},
+  ) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
     this.code = code;
+    this.details = details;
     if (retryAfter !== undefined) this.retryAfter = retryAfter;
   }
 }
@@ -52,14 +64,29 @@ function parseRetryAfter(value: string | null): number | undefined {
 async function toApiError(res: Response): Promise<ApiError> {
   let code = `http_${res.status}`;
   let message = res.statusText || `HTTP ${res.status}`;
+  let details: Record<string, unknown> = {};
   try {
-    const body = (await res.json()) as { error?: { code?: unknown; message?: unknown } };
+    const body = (await res.json()) as Record<string, unknown> & {
+      error?: { code?: unknown; message?: unknown; details?: unknown };
+    };
     if (typeof body.error?.code === 'string') code = body.error.code;
     if (typeof body.error?.message === 'string') message = body.error.message;
+    const inner = body.error && typeof body.error === 'object' ? body.error : {};
+    const nested =
+      'details' in inner && inner.details && typeof inner.details === 'object'
+        ? (inner.details as Record<string, unknown>)
+        : {};
+    details = { ...body, ...inner, ...nested };
   } catch {
     // Not a JSON error body (a proxy page, say); keep the HTTP status text.
   }
-  return new ApiError(res.status, code, message, parseRetryAfter(res.headers.get('Retry-After')));
+  return new ApiError(
+    res.status,
+    code,
+    message,
+    parseRetryAfter(res.headers.get('Retry-After')),
+    details,
+  );
 }
 
 type Method = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
@@ -69,6 +96,7 @@ async function request<T>(
   path: string,
   body?: unknown,
   signal?: AbortSignal,
+  timeoutMs?: number,
 ): Promise<T> {
   const headers: Record<string, string> = { Accept: 'application/json' };
   if (method !== 'GET') headers[CSRF_HEADER] = '1';
@@ -78,7 +106,9 @@ async function request<T>(
     payload = JSON.stringify(body);
   }
 
-  const timeout = AbortSignal.timeout(method === 'GET' ? READ_TIMEOUT_MS : WRITE_TIMEOUT_MS);
+  const timeout = AbortSignal.timeout(
+    timeoutMs ?? (method === 'GET' ? READ_TIMEOUT_MS : WRITE_TIMEOUT_MS),
+  );
   let res: Response;
   try {
     res = await fetch(url(path), {
@@ -107,29 +137,52 @@ async function request<T>(
   }
 }
 
-/** GET `/api/v1/<path>` and parse the JSON body. Throws ApiError on any failure. */
-export function getJSON<T>(path: string, signal?: AbortSignal): Promise<T> {
-  return request<T>('GET', path, undefined, signal);
+/**
+ * GET `/api/v1/<path>` and parse the JSON body. Throws ApiError on any failure. `timeoutMs` raises
+ * the default wait (5 s) for the few calls that ask a slow provider (a search).
+ */
+export function getJSON<T>(path: string, signal?: AbortSignal, timeoutMs?: number): Promise<T> {
+  return request<T>('GET', path, undefined, signal, timeoutMs);
 }
 
 /** POST a JSON body (or none). Resolves with the parsed answer, or undefined on 204. */
-export function postJSON<T = void>(path: string, body?: unknown, signal?: AbortSignal): Promise<T> {
-  return request<T>('POST', path, body, signal);
+export function postJSON<T = void>(
+  path: string,
+  body?: unknown,
+  signal?: AbortSignal,
+  timeoutMs?: number,
+): Promise<T> {
+  return request<T>('POST', path, body, signal, timeoutMs);
 }
 
 /** PUT a JSON body. */
-export function putJSON<T = void>(path: string, body?: unknown, signal?: AbortSignal): Promise<T> {
-  return request<T>('PUT', path, body, signal);
+export function putJSON<T = void>(
+  path: string,
+  body?: unknown,
+  signal?: AbortSignal,
+  timeoutMs?: number,
+): Promise<T> {
+  return request<T>('PUT', path, body, signal, timeoutMs);
 }
 
 /** PATCH a JSON body. */
-export function patchJSON<T = void>(path: string, body?: unknown, signal?: AbortSignal): Promise<T> {
-  return request<T>('PATCH', path, body, signal);
+export function patchJSON<T = void>(
+  path: string,
+  body?: unknown,
+  signal?: AbortSignal,
+  timeoutMs?: number,
+): Promise<T> {
+  return request<T>('PATCH', path, body, signal, timeoutMs);
 }
 
 /** DELETE `/api/v1/<path>`; a JSON body is optional. */
-export function del<T = void>(path: string, body?: unknown, signal?: AbortSignal): Promise<T> {
-  return request<T>('DELETE', path, body, signal);
+export function del<T = void>(
+  path: string,
+  body?: unknown,
+  signal?: AbortSignal,
+  timeoutMs?: number,
+): Promise<T> {
+  return request<T>('DELETE', path, body, signal, timeoutMs);
 }
 
 export interface Health {

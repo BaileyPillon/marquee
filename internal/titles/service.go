@@ -345,6 +345,20 @@ func (s *Service) SetMonitored(ctx context.Context, id int64, monitored bool) er
 	return s.store.inTx(ctx, func(q queries) error { return q.setMonitored(ctx, id, monitored) })
 }
 
+// MonitorSeasons makes a show monitored and turns on the listed seasons and
+// their episodes. Seasons that are not listed keep the flag they have, so asks
+// for different seasons add up. A season the show does not have is ignored.
+func (s *Service) MonitorSeasons(ctx context.Context, id int64, seasons []int) error {
+	return s.store.inTx(ctx, func(q queries) error { return q.monitorSeasons(ctx, id, seasons) })
+}
+
+// MonitorAlbums makes an artist monitored and turns on the listed albums
+// (album ids). Albums that are not listed keep the flag they have. An id that
+// is not one of the artist's albums is ignored.
+func (s *Service) MonitorAlbums(ctx context.Context, id int64, albums []int64) error {
+	return s.store.inTx(ctx, func(q queries) error { return q.monitorAlbums(ctx, id, albums) })
+}
+
 // Delete removes a title and its catalog rows. It never touches files.
 func (s *Service) Delete(ctx context.Context, id int64) error {
 	return s.store.inTx(ctx, func(q queries) error { return q.delete(ctx, id) })

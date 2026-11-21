@@ -277,9 +277,17 @@ export function keysArt(born: number, died: number, caption: string): ArtComposi
 
   shapes.push(...frameCorners());
 
+  // The catalog may know only the year an artist began (or neither): set what there is.
+  const years =
+    born > 0 && died > 0
+      ? `${toRoman(born)} · ${toRoman(died)}`
+      : born > 0
+        ? toRoman(born)
+        : '';
+
   return {
     shapes,
-    numeral: { text: `${toRoman(born)} · ${toRoman(died)}`, tone: 'muted' },
-    labels: [{ text: caption, left: 34, top: 146 }],
+    ...(years ? { numeral: { text: years, tone: 'muted' as const } } : {}),
+    labels: caption ? [{ text: caption, left: 34, top: 146 }] : [],
   };
 }

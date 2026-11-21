@@ -1,12 +1,15 @@
 <script lang="ts">
+  import PreviewTag from './PreviewTag.svelte';
   import { t } from '../core/i18n';
   import type { ComingEvent } from '../core/types';
 
   interface Props {
     events: ComingEvent[];
+    /** The row still shows sample content: it gets a small "Preview" tag. */
+    preview?: boolean;
   }
 
-  let { events }: Props = $props();
+  let { events, preview = false }: Props = $props();
 
   const uid = $props.id();
   const headingId = `coming-${uid}`;
@@ -14,7 +17,10 @@
 
 <section aria-labelledby={headingId}>
   <div class="head">
-    <h2 id={headingId}>{t('coming.title')}</h2>
+    <h2 id={headingId}>
+      {t('coming.title')}
+      {#if preview}<span class="tag"><PreviewTag /></span>{/if}
+    </h2>
     <a class="all" href="/calendar">{t('action.openCalendar')}</a>
   </div>
   <ul class="scroller">
@@ -51,6 +57,11 @@
     font-weight: 600;
     line-height: 24px;
     color: var(--text);
+  }
+  .tag {
+    display: inline-block;
+    margin-left: 8px;
+    vertical-align: 2px;
   }
   .all {
     font-size: 13px;

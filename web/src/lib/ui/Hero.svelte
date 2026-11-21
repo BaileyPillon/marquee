@@ -1,7 +1,9 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
+  import ArtImage from './ArtImage.svelte';
   import HeroArt from './HeroArt.svelte';
   import Icon from './Icon.svelte';
+  import type { IconName } from './icons';
   import { t } from '../core/i18n';
   import type { PanelTheme } from '../core/types';
 
@@ -10,6 +12,13 @@
     year: number;
     /** Text after the check mark, e.g. "In your library · 1080p". */
     status: string;
+    /** The mark before the status: a check when it is in the library, a clock when it is not yet. */
+    statusIcon?: IconName;
+    /**
+     * The real backdrop (an artwork ref). It lies over the drawn art on the art side, under a dark
+     * scrim; without it, or if it cannot load, the drawn art shows.
+     */
+    backdropRef?: string;
     /** One line under the title: year, kind, credit. */
     meta: string;
     blurb: string;
@@ -38,6 +47,8 @@
     title,
     year,
     status,
+    statusIcon = 'check',
+    backdropRef,
     meta,
     blurb,
     theme,
@@ -52,6 +63,8 @@
     gap = 22,
     metaTone = 'default',
   }: Props = $props();
+
+  let backdropLoaded = $state(false);
 </script>
 
 <div class="wrap" style:--hero-gap="{gap}px">
@@ -69,7 +82,7 @@
   >
     <div class="text">
       <div class="status">
-        <Icon name="check" size={16} stroke={2.2} />
+        <Icon name={statusIcon} size={16} stroke={2.2} />
         <span>{status}</span>
       </div>
       <h1>{title}</h1>
@@ -81,6 +94,10 @@
     </div>
     <div class="art" aria-hidden="true">
       {#if art}{@render art()}{:else}<HeroArt {year} />{/if}
+      {#if backdropRef}
+        <ArtImage imageRef={backdropRef} bind:loaded={backdropLoaded} />
+        <div class="scrim" class:on={backdropLoaded}></div>
+      {/if}
     </div>
   </section>
 </div>
@@ -173,10 +190,32 @@
     background: var(--hero-art-bg);
   }
 
+  /*
+   * The dark scrim over a real backdrop: it melts the picture into the panel on the text side and
+   * darkens the rest, so nothing drawn or written near it loses contrast. No text sits on the art
+   * (the art side is decorative and the text column is its own box), and the panel colour under the
+   * text is unchanged.
+   */
+  .scrim {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    background:
+      linear-gradient(90deg, var(--hero-bg) 0%, rgba(19, 18, 17, 0.55) 38%, rgba(19, 18, 17, 0.4) 100%);
+  }
+  .scrim.on {
+    opacity: 1;
+  }
+
   /* Text and art no longer fit side by side: the art becomes a full-width band under the text. */
   @container (max-width: 979.98px) {
     .art {
       flex: 1 0 100%;
+    }
+    .scrim {
+      background:
+        linear-gradient(180deg, var(--hero-bg) 0%, rgba(19, 18, 17, 0.5) 40%, rgba(19, 18, 17, 0.4) 100%);
     }
   }
 

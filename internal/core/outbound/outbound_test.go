@@ -346,3 +346,62 @@ func TestRateLimitWaitHonoursContext(t *testing.T) {
 		t.Fatal("expected the wait to be cancelled")
 	}
 }
+
+func TestRedirectsAreFollowedUnlessTheCallSaysNot(t *testing.T) {
+	var hits atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/final":
+			hits.Add(1)
+			_, _ = io.WriteString(w, "arrived")
+		case "/magnet":
+			http.Redirect(w, r, "magnet:?xt=urn:btih:dd8255ecdc7ca55fb0bbf81323d87062db1f6d1c&dn=A+B", http.StatusFound)
+		default:
+			http.Redirect(w, r, "/final", http.StatusFound)
+		}
+	}))
+	defer srv.Close()
+	c := newTestClient(t, Options{})
+
+	// Default: followed.
+	resp, err := c.Get(context.Background(), srv.URL+"/start")
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if string(body) != "arrived" || hits.Load() != 1 {
+		t.Fatalf("followed redirect: body %q, hits %d", body, hits.Load())
+	}
+
+	// WithNoRedirect: the 3xx and its Location come back untouched.
+	resp, err = c.Get(context.Background(), srv.URL+"/start", WithNoRedirect())
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusFound || resp.Header.Get("Location") != "/final" || hits.Load() != 1 {
+		t.Errorf("no-redirect: %d %q hits %d", resp.StatusCode, resp.Header.Get("Location"), hits.Load())
+	}
+
+	// A magnet: redirect cannot be followed by any HTTP client, but can be read.
+	resp, err = c.Get(context.Background(), srv.URL+"/magnet", WithNoRedirect())
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if loc := resp.Header.Get("Location"); !strings.HasPrefix(loc, "magnet:?xt=urn:btih:dd8255") {
+		t.Errorf("Location = %q", loc)
+	}
+}
+
+func TestRedirectLoopStops(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, r.URL.Path, http.StatusFound)
+	}))
+	defer srv.Close()
+	c := newTestClient(t, Options{})
+	if _, err := c.Get(context.Background(), srv.URL+"/loop"); err == nil || !strings.Contains(err.Error(), "redirects") {
+		t.Errorf("err = %v, want a redirect-limit error", err)
+	}
+}

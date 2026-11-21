@@ -1,5 +1,7 @@
-// Mock data for Settings › Connections, reproduced from the approved Cinema canvas
-// (A-Settings.dc.html). getSettings() has the shape of the future API call.
+// Sample data for the panels of Settings › Connections whose backends are not built yet (download
+// apps, media servers, sources, Claude keys, alerts), reproduced from the approved Cinema canvas
+// (A-Settings.dc.html). The page tags each of them "Preview". Title info is real: see
+// lib/core/providerRows.ts. getSettingsPreview() has the shape of the future API call.
 import type { SettingsView } from '../core/views';
 import { respond } from './latency';
 
@@ -40,11 +42,6 @@ const settings: SettingsView = {
     },
     { name: 'Usenet indexer', tag: 'Newznab', status: 'Key saved', state: 'on', action: 'edit' },
   ],
-  titleInfo: [
-    { name: 'TMDB', status: 'Your own key · last used 2 min ago', state: 'on', action: 'edit' },
-    { name: 'TVmaze', status: 'No key needed', state: 'on', action: 'test' },
-    { name: 'MusicBrainz', status: 'No key needed', state: 'on', action: 'test' },
-  ],
   keys: [
     {
       name: "Bailey's laptop",
@@ -65,7 +62,7 @@ const settings: SettingsView = {
   ],
 };
 
-/** The Connections tab. The API will answer GET /api/v1/settings/connections. */
-export function getSettings(): Promise<SettingsView> {
+/** The preview panels of the Connections tab. */
+export function getSettingsPreview(): Promise<SettingsView> {
   return respond(settings);
 }

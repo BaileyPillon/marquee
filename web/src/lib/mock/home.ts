@@ -1,78 +1,36 @@
-// Mock data for Home, reproduced from the approved Cinema canvas (Main.dc.html).
-// Strings here are content (what the server will send), not interface text.
-import type { ComingEvent, FeaturedTitle, PosterRowData } from '../core/types';
-import { downloading, item, library, missing, requested } from './poster';
+// Sample rows for Home whose backends are not built yet ("Your friends want" waits for requests,
+// M4; "Coming up" waits for the calendar, M7), reproduced from the approved Cinema canvas
+// (Main.dc.html). Home tags both "Preview". The featured title and "Recently added" are real: they
+// come from the catalog. Strings here are content (what the server will send), not interface text.
+import type { ComingEvent, PosterRowData } from '../core/types';
+import { downloading, item, missing, requested } from './poster';
 
-export const featured: FeaturedTitle = {
-  id: 'metropolis',
-  kind: 'movie',
-  title: 'Metropolis',
-  year: 1927,
-  quality: '1080p',
-  server: 'Jellyfin',
-  askQuality: '4K',
-  meta: '1927 · Silent film · Directed by Fritz Lang',
-  blurb:
-    'A futuristic city is split between the planners who live above and the workers who run its machines below.',
-  theme: {
-    bg: '#16213A',
-    artBg: '#0F1624',
-    disc: '#2A3C63',
-    towerA: '#1B2842',
-    towerB: '#0A0F18',
-  },
+// A card here is sample content that points at no real title, so it leads to the requests page.
+function toRequests(items: ReturnType<typeof item>[]): ReturnType<typeof item>[] {
+  return items.map((it) => ({ ...it, href: '/requests' }));
+}
+
+export const friendsWant: PosterRowData = {
+  id: 'friends-want',
+  title: 'Your friends want',
+  href: '/requests',
+  items: toRequests([
+    item('Metropolis', '1927', requested, 'Priya · 4K · waiting for you', 'waiting'),
+    item(
+      'The Phantom Creeps',
+      '1939 · TV',
+      requested,
+      'Dee · all episodes · waiting for you',
+      'waiting',
+      'tv',
+    ),
+    item('Detour', '1945', missing, "From Marco's watchlist", 'asked'),
+    item('Sintel', '2010', downloading(62), 'Dee · 4K · approved', 'asked'),
+    item('Charade', '1963', requested, 'Sam · asked', 'asked'),
+    item('Sprite Fright', '2021', requested, 'Marco · asked', 'asked'),
+    item('Elephants Dream', '2006', requested, "From Priya's watchlist", 'asked'),
+  ]),
 };
-
-export const rows: PosterRowData[] = [
-  {
-    id: 'friends-want',
-    title: 'Your friends want',
-    href: '/requests',
-    items: [
-      item('Metropolis', '1927', requested, 'Priya · 4K · waiting for you', 'waiting'),
-      item(
-        'The Phantom Creeps',
-        '1939 · TV',
-        requested,
-        'Dee · all episodes · waiting for you',
-        'waiting',
-        'tv',
-      ),
-      item('Detour', '1945', missing, "From Marco's watchlist", 'asked'),
-      item('Sintel', '2010', downloading(62), 'Dee · 4K · approved', 'asked'),
-      item('Charade', '1963', requested, 'Sam · asked', 'asked'),
-      item('Sprite Fright', '2021', requested, 'Marco · asked', 'asked'),
-      item('Elephants Dream', '2006', requested, "From Priya's watchlist", 'asked'),
-    ],
-  },
-  {
-    id: 'recently-added',
-    title: 'Recently added',
-    href: '/movies',
-    items: [
-      item('Nosferatu', '1922', library, 'Added today · 1080p', 'quiet'),
-      item('The General', '1926', library, 'Added today · 1080p', 'quiet'),
-      item('Sherlock Jr.', '1924', library, 'Added yesterday · 1080p', 'quiet'),
-      item('Safety Last!', '1923', library, 'Added Wed · 1080p', 'quiet'),
-      item('The Kid', '1921', library, 'Added Wed · 1080p', 'quiet'),
-      item('Night of the Living Dead', '1968', library, 'Added Mon · 1080p', 'quiet'),
-      item('His Girl Friday', '1940', library, 'Added Mon · 1080p', 'quiet'),
-    ],
-  },
-  {
-    id: 'new-and-popular',
-    title: 'New & popular',
-    href: '/popular',
-    items: [
-      item('Big Buck Bunny', '2008', library, 'Short film · 1080p', 'quiet'),
-      item('Tears of Steel', '2012', library, 'Short film · 1080p', 'quiet'),
-      item('Cosmos Laundromat', '2015', requested, 'Short film · you asked', 'quiet'),
-      item('Spring', '2019', library, 'Short film · 1080p', 'quiet'),
-      item('Pioneer One', '2010 · TV', library, 'TV · 3 episodes', 'quiet', 'tv'),
-      item('Undersea Kingdom', '1936 · TV', missing, 'TV · no release yet', 'quiet', 'tv'),
-    ],
-  },
-];
 
 export const coming: ComingEvent[] = [
   {
@@ -81,27 +39,27 @@ export const coming: ComingEvent[] = [
     title: 'Sintel 4K',
     status: 'Downloading 62%',
     progress: 62,
-    href: '/movies/sintel',
+    href: '/calendar',
   },
   {
     day: 'Sun',
     date: '22',
     title: 'Cosmos Laundromat',
     status: 'Searching sources',
-    href: '/movies/cosmos-laundromat',
+    href: '/calendar',
   },
   {
     day: 'Tue',
     date: '24',
     title: 'Detour',
     status: 'Rechecking sources',
-    href: '/movies/detour',
+    href: '/calendar',
   },
   {
     day: 'Thu',
     date: '26',
     title: 'Pioneer One S1E4',
     status: 'Expected',
-    href: '/tv/pioneer-one',
+    href: '/calendar',
   },
 ];

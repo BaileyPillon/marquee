@@ -7,17 +7,19 @@
     href: string;
     title: string;
     year: string;
-    status: Status;
+    status?: Status;
     caption: string;
     tone?: CaptionTone;
     size?: PosterSize;
+    /** The real artwork, over the typographic poster. */
+    imageRef?: string;
   }
 
-  let { href, title, year, status, caption, tone = 'quiet', size = 'md' }: Props = $props();
+  let { href, title, year, status, caption, tone = 'quiet', size = 'md', imageRef }: Props = $props();
 </script>
 
 <a class="card {size}" {href}>
-  <Poster {title} {year} {status} {size} />
+  <Poster {title} {year} {status} {size} {imageRef} />
   <div class="caption {tone}">{caption}</div>
 </a>
 

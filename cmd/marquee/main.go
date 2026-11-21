@@ -130,6 +130,19 @@ func serve(ctx context.Context, log *slog.Logger, addr, configDir string) error 
 	lib := newLibrary(mainDB, hub, catalog, log)
 	defer lib.Close()
 
+	// Requests. A later step calls reqs.SetSearcher once there is a searcher.
+	reqs := newRequests(mainDB, hub, catalog, lib, cfg, log)
+	defer reqs.Close()
+
+	// Download clients and download tracking. The search step will be given
+	// downloadGrabber(dl); the importer will be set with dl.SetCompletedHandler.
+	dl := newDownloads(mainDB, hub, hc, box, log)
+
+	// Sources, quality profiles and release search (sources.go). The search is
+	// what an approved ask starts, and it sends its pick to the download client.
+	rf := newReleaseFinding(mainDB, hc, box, catalog, lib, reqs, downloadGrabber(dl), log)
+	reqs.SetSearcher(rf.Search)
+
 	sched := jobs.New(log)
 	if err := sched.Every("accounts-cleanup", time.Hour, acc.Cleanup); err != nil {
 		return err
@@ -140,6 +153,12 @@ func serve(ctx context.Context, log *slog.Logger, addr, configDir string) error 
 	if err := registerLibraryJobs(sched, lib); err != nil {
 		return err
 	}
+	if err := registerDownloadsJobs(sched, dl); err != nil {
+		return err
+	}
+	if err := registerReleaseJobs(sched, rf); err != nil {
+		return err
+	}
 	sched.Start()
 	defer sched.Stop()
 
@@ -148,17 +167,22 @@ func serve(ctx context.Context, log *slog.Logger, addr, configDir string) error 
 		return err
 	}
 	srv := web.New(web.Deps{
-		Version:  version,
-		Log:      log,
-		MainDB:   mainDB,
-		EventsDB: eventsDB,
-		Accounts: acc,
-		Settings: cfg,
-		Hub:      hub,
-		Metadata: meta,
-		Titles:   catalog,
-		Library:  lib,
-		UI:       dist,
+		Version:   version,
+		Log:       log,
+		MainDB:    mainDB,
+		EventsDB:  eventsDB,
+		Accounts:  acc,
+		Settings:  cfg,
+		Hub:       hub,
+		Metadata:  meta,
+		Titles:    catalog,
+		Library:   lib,
+		Downloads: dl,
+		Requests:  reqs,
+		Sources:   rf.Sources,
+		Decide:    rf.Decide,
+		Search:    rf.Search,
+		UI:        dist,
 	})
 
 	ln, err := net.Listen("tcp", addr)

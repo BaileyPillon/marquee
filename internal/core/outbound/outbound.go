@@ -102,7 +102,7 @@ func New(version string, opts Options) *Client {
 	return &Client{
 		// The total deadline is applied per call (see Do), not here, so a
 		// caller can override it.
-		hc:         &http.Client{Transport: transport},
+		hc:         &http.Client{Transport: transport, CheckRedirect: checkRedirect},
 		log:        opts.Logger,
 		userAgent:  "Marquee/" + version + " (+" + ProjectURL + ")",
 		timeout:    opts.DefaultTimeout,
@@ -136,6 +136,9 @@ func (c *Client) Do(req *http.Request, opts ...CallOption) (*http.Response, erro
 
 	start := time.Now()
 	ctx, cancel := context.WithTimeout(req.Context(), timeout)
+	if co.noRedirect {
+		ctx = context.WithValue(ctx, noRedirectKey{}, true)
+	}
 	req = req.Clone(ctx)
 	if req.Header.Get("User-Agent") == "" {
 		req.Header.Set("User-Agent", c.userAgent)
@@ -198,10 +201,35 @@ func (c *Client) Get(ctx context.Context, rawURL string, opts ...CallOption) (*h
 // CallOption changes one call.
 type CallOption func(*callOptions)
 
-type callOptions struct{ timeout time.Duration }
+type callOptions struct {
+	timeout    time.Duration
+	noRedirect bool
+}
 
 // WithTimeout replaces the default total timeout for one call.
 func WithTimeout(d time.Duration) CallOption { return func(o *callOptions) { o.timeout = d } }
+
+// WithNoRedirect makes one call hand back a 3xx response as it is, instead of
+// following it. The caller reads the Location header itself. This is how a
+// redirect to a magnet: link (which no HTTP client can follow) is seen.
+func WithNoRedirect() CallOption { return func(o *callOptions) { o.noRedirect = true } }
+
+type noRedirectKey struct{}
+
+// maxRedirects matches net/http's own default.
+const maxRedirects = 10
+
+// checkRedirect is the client-wide redirect policy: stop after maxRedirects,
+// and stop at once for a call that asked for WithNoRedirect.
+func checkRedirect(req *http.Request, via []*http.Request) error {
+	if req.Context().Value(noRedirectKey{}) != nil {
+		return http.ErrUseLastResponse
+	}
+	if len(via) >= maxRedirects {
+		return errors.New("stopped after 10 redirects")
+	}
+	return nil
+}
 
 func (c *Client) logCall(req *http.Request, status, attempts int, took time.Duration, err error) {
 	if !c.log.Enabled(req.Context(), slog.LevelDebug) {

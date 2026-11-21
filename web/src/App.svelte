@@ -10,13 +10,30 @@
   import { ping } from './lib/core/api';
   import { t } from './lib/core/i18n';
   import { isDesktop } from './lib/core/media';
-  import { current, navigate, startRouter } from './lib/core/router';
+  import { requestsState } from './lib/core/requests.svelte';
+  import { current, navigate, startRouter, type Section } from './lib/core/router';
   import { session } from './lib/core/session.svelte';
-  import { badges } from './lib/mock/shell';
 
   const match = $derived($current);
   let main: HTMLElement | undefined = $state();
   let offline = $state(false);
+
+  // The Requests badge is asks waiting for the owner's yes, from `/requests/summary` once that
+  // exists. An owner or an admin sees it; with no answer (not built yet, or offline) there is none.
+  const badges = $derived<Partial<Record<Section, number>>>(
+    (session.me?.role === 'owner' || session.me?.role === 'admin') && requestsState.waiting > 0
+      ? { requests: requestsState.waiting }
+      : {},
+  );
+
+  // Keep the summary fresh while someone is signed in; forget it when they leave.
+  $effect(() => {
+    if (!session.me) {
+      requestsState.clear();
+      return;
+    }
+    return requestsState.start();
+  });
 
   // The rail's owner block and the phone avatar: the real person, once the server has said who.
   const owner = $derived(
@@ -123,13 +140,16 @@
           <NotFound />
         {:else}
           {@const Page = pages[match.route.name] ?? Stub}
-          <Page {match} />
+          <!-- Keyed by route, so /movies and /tv (one component) start fresh each time. -->
+          {#key match.route.name}
+            <Page {match} />
+          {/key}
         {/if}
       </main>
     </div>
 
     {#if !$isDesktop}
-      <TabBar active={match.route.section} />
+      <TabBar active={match.route.section} role={session.me?.role ?? null} {badges} />
     {/if}
   </div>
 {/if}

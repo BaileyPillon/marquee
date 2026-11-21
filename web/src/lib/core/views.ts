@@ -1,9 +1,10 @@
-// Shapes of what the pages load. The mock modules in lib/mock/ build these today; the Go API will
-// send the same shapes later, so a page never knows which one answered.
+// Shapes of the sample content that pages still show while their backends are not built (requests,
+// downloads, the Connections panels, a movie's releases and history), plus a few shared pieces. The
+// mock modules in lib/mock/ build these; the Go API will send the same shapes later, so a page
+// never knows which one answered. What the catalog and library APIs send is in catalog.ts.
 //
 // Strings in these types are content (names, dates, sizes, reasons the server wrote). Interface
 // text lives in en.json and goes through t().
-import type { PanelTheme, PosterItem, Status } from './types';
 
 /** One label and value pair, as the server describes a request, a rule or a limit. */
 export interface Fact {
@@ -11,25 +12,7 @@ export interface Fact {
   value: string;
 }
 
-/* ------------------------------------------------------------------ Ask sheet */
-
-export interface AskChoice {
-  id: 'hd' | '4k';
-  title: string;
-  sub: string;
-  /** Not offered: the library already has it. */
-  unavailable: boolean;
-}
-
-export interface AskView {
-  /** Who says yes to asks. */
-  ownerName: string;
-  choices: AskChoice[];
-  selected: AskChoice['id'];
-  facts: Fact[];
-}
-
-/* ------------------------------------------------------------------ Movie page */
+/* ------------------------------------------------------------------ Movie page (sample sections) */
 
 export type HistoryKind = 'found' | 'asked' | 'imported' | 'grabbed';
 
@@ -44,109 +27,10 @@ export interface Release {
   best: boolean;
 }
 
-export interface TitleView {
-  id: string;
-  title: string;
-  year: number;
-  /** Text after the check mark, e.g. "In your library · 1080p". */
-  status: string;
-  meta: string;
-  blurb: string;
-  theme: PanelTheme;
-  genres: string[];
-  /** Media server that plays it. */
-  server: string;
-  /** Quality offered by "Ask for …". */
-  askQuality: string;
-  library: { quality: string; fileName: string; details: string };
-  copy4k: { status: Status; headline: string; asked: string; rule: string };
-  releases: { note: string; items: Release[] };
-  cast: string[];
-  crew: Array<{ name: string; role: string }>;
-  history: Array<{ date: string; kind: HistoryKind; text: string }>;
-  similar: PosterItem[];
-}
-
 /* ------------------------------------------------------------------ Show page */
 
-export type EpisodeState = 'library' | 'downloading' | 'missing' | 'upcoming';
-
-export interface Episode {
-  num: number;
-  air: string;
-  state: EpisodeState;
-  /** What the server says about this episode, e.g. "In library · 1080p · 1.1 GB". */
-  status: string;
-  /** 0 to 100 while it downloads. */
-  progress?: number;
-  action: 'open' | 'search';
-}
-
-export interface ShowView {
-  id: string;
-  title: string;
-  year: number;
-  status: string;
-  meta: string;
-  blurb: string;
-  theme: PanelTheme;
-  server: string;
-  /** Follow the show for new episodes. */
-  watching: boolean;
-  season: { number: number; have: number; total: number; episodes: Episode[] };
-  rules: Fact[];
-  similar: PosterItem[];
-}
-
-/* ------------------------------------------------------------------ Artist page */
-
-export interface Album {
-  id: string;
-  title: string;
-  years: string;
-  status: Status;
-  tracks: number;
-  caption: string;
-  /** Cover colour, standing in for artwork. */
-  color: string;
-}
-
-export interface Track {
-  num: number;
-  title: string;
-  album: string;
-  length: string;
-  format: string;
-}
-
-export interface SimilarArtist {
-  id: string;
-  name: string;
-  detail: string;
-  color: string;
-}
-
-export interface ArtistView {
-  id: string;
-  name: string;
-  /** How the artist is named in a sentence, e.g. "Chopin". */
-  shortName: string;
-  /** Years of life, for the Roman numerals set into the art. */
-  born: number;
-  died: number;
-  status: string;
-  meta: string;
-  blurb: string;
-  theme: PanelTheme;
-  /** Small caps line in the art, e.g. "NOCTURNES · BALLADES". */
-  artCaption: string;
-  server: string;
-  /** Who says yes to asks. */
-  ownerName: string;
-  albums: { note: string; items: Album[] };
-  tracks: { items: Track[]; shown: number; total: number };
-  similar: SimilarArtist[];
-}
+/** How an episode stands: unknown when the library's file list is not available to this person. */
+export type EpisodeState = 'library' | 'downloading' | 'missing' | 'upcoming' | 'unknown';
 
 /* ------------------------------------------------------------------ Requests */
 
@@ -263,7 +147,8 @@ export interface ConnectionRow {
   status: string;
   /** Shown as a dot with the status text. */
   state: 'on' | 'off';
-  action: RowAction;
+  /** The button at the right of the row; none when the row has nothing to do. */
+  action?: RowAction;
 }
 
 export type McpAbility = 'see' | 'ask' | 'downloads' | 'settings' | 'delete' | 'approve';
@@ -278,7 +163,6 @@ export interface SettingsView {
   downloadApps: ConnectionRow[];
   mediaServers: ConnectionRow[];
   sources: ConnectionRow[];
-  titleInfo: ConnectionRow[];
   keys: McpKey[];
   alerts: ConnectionRow[];
 }

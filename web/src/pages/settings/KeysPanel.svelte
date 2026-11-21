@@ -3,6 +3,7 @@
   import Chip from '../../lib/ui/Chip.svelte';
   import Icon from '../../lib/ui/Icon.svelte';
   import Panel from '../../lib/ui/Panel.svelte';
+  import PreviewTag from '../../lib/ui/PreviewTag.svelte';
   import SectionHead from '../../lib/ui/SectionHead.svelte';
   import { t } from '../../lib/core/i18n';
   import type { McpKey } from '../../lib/core/views';
@@ -19,7 +20,8 @@
 
 <Panel labelledby={headId} padding="18px">
   <SectionHead title={t('settings.panel.mcp')} id={headId} size="md" align="center" gap={4} minHeight={36}>
-    <Button variant="primary" size="sm">
+    <PreviewTag />
+    <Button variant="primary" size="sm" disabled>
       <Icon name="plus" size={16} stroke={2.2} />
       {t('settings.newKey')}
     </Button>
@@ -34,6 +36,7 @@
           </div>
           <Button
             size="compact"
+            disabled
             aria-label={t('settings.rowAria', { action: t('settings.action.revoke'), name: key.name })}
           >
             {t('settings.action.revoke')}

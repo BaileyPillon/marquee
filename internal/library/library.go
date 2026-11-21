@@ -296,6 +296,12 @@ func (s *Service) Folder(ctx context.Context, id int64) (Folder, error) {
 	return s.store.GetFolder(ctx, id)
 }
 
+// ListFolders lists every folder, oldest first, without counts or disk space. It
+// is the cheap way to find a folder by kind or path.
+func (s *Service) ListFolders(ctx context.Context) ([]Folder, error) {
+	return s.store.ListFolders(ctx)
+}
+
 // Folders lists every folder with its counts and free disk space.
 func (s *Service) Folders(ctx context.Context) ([]FolderInfo, error) {
 	folders, err := s.store.ListFolders(ctx)
