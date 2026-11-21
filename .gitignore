@@ -1,0 +1,12 @@
+bin/
+.dev/
+config/
+*.db
+*.db-wal
+*.db-shm
+marquee.key
+web/node_modules/
+web/dist/
+*.log
+.env*
+*.exe

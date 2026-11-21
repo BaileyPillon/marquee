@@ -1,0 +1,24 @@
+{
+  "name": "marquee-web",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "Marquee web front end (static SPA, embedded into the Go binary)",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "check": "svelte-check --tsconfig ./tsconfig.json --fail-on-warnings"
+  },
+  "dependencies": {
+    "@fontsource/dm-serif-display": "5.3.0",
+    "@fontsource/inter": "5.3.0"
+  },
+  "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "7.3.1",
+    "svelte": "5.59.1",
+    "svelte-check": "4.7.8",
+    "typescript": "6.0.3",
+    "vite": "8.3.8"
+  }
+}

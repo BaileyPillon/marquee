@@ -1,0 +1,75 @@
+{
+  "app.name": "Marquee",
+  "doc.title": "{page} · {app}",
+
+  "a11y.skip": "Skip to content",
+  "a11y.profile": "{name}, your profile",
+
+  "nav.main": "Main",
+  "nav.settingsLabel": "Settings",
+  "nav.group.library": "Library",
+  "nav.group.yourStuff": "Your stuff",
+  "nav.home": "Home",
+  "nav.explore": "Explore",
+  "nav.popular": "New & popular",
+  "nav.movies": "Movies",
+  "nav.tv": "TV shows",
+  "nav.music": "Music",
+  "nav.requests": "Requests",
+  "nav.downloads": "Downloads",
+  "nav.calendar": "Calendar",
+  "nav.settings": "Settings",
+
+  "tabs.home": "Home",
+  "tabs.explore": "Explore",
+  "tabs.asks": "My asks",
+  "tabs.profile": "Profile",
+
+  "role.owner": "Owner",
+  "role.admin": "Admin",
+  "role.member": "Member",
+
+  "search.label": "Search movies, shows, artists",
+  "search.placeholder": "Search movies, shows, artists",
+  "search.open": "Search",
+  "search.close": "Close search",
+
+  "action.ask": "Ask for…",
+  "action.seeAll": "See all",
+  "action.openCalendar": "Open calendar",
+
+  "hero.label": "Featured title",
+  "hero.inLibrary": "In your library · {quality}",
+  "hero.openIn": "Open in {server}",
+  "hero.askFor": "Ask for {quality}",
+
+  "status.library": "In library",
+  "status.downloading": "Downloading {pct}%",
+  "status.requested": "Requested",
+  "status.missing": "Missing",
+
+  "coming.title": "Coming up",
+
+  "health.offline": "Server offline",
+
+  "route.home": "Home",
+  "route.explore": "Explore",
+  "route.popular": "New & popular",
+  "route.movies": "Movies",
+  "route.movie": "Movie",
+  "route.tv": "TV shows",
+  "route.show": "Show",
+  "route.music": "Music",
+  "route.artist": "Artist",
+  "route.requests": "Requests",
+  "route.downloads": "Downloads",
+  "route.calendar": "Calendar",
+  "route.settings": "Settings",
+
+  "stub.soon": "This page is coming soon.",
+  "stub.id": "ID: {id}",
+
+  "notFound.title": "Page not found",
+  "notFound.body": "That address does not lead anywhere in Marquee.",
+  "notFound.home": "Back to Home"
+}
