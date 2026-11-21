@@ -386,3 +386,31 @@ func (s *Service) Cleanup(ctx context.Context) error {
 	}
 	return nil
 }
+
+// ---- members made by another module ------------------------------------------
+
+// CreateMember makes a member who has no password anyone knows, so the person
+// cannot sign in until the owner gives them a way in (an invite, later a Plex
+// sign-in). It is for modules that act for a person who has no account yet: a
+// Plex friend whose watchlist becomes asks. A name that is taken gives
+// ErrNameTaken.
+func (s *Service) CreateMember(ctx context.Context, name string) (User, error) {
+	name, err := cleanName(name)
+	if err != nil {
+		return User{}, err
+	}
+	nobody, err := newToken(32)
+	if err != nil {
+		return User{}, fmt.Errorf("accounts: member password: %w", err)
+	}
+	hash, err := s.hasher.hash(nobody) // nobody is thrown away: no one can sign in with it
+	if err != nil {
+		return User{}, err
+	}
+	u, err := s.store.InsertMember(ctx, name, hash, s.now())
+	if err != nil {
+		return User{}, err
+	}
+	s.log.Info("member created for another service", "user", u.Name)
+	return u, nil
+}

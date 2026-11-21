@@ -111,7 +111,7 @@ func (s *Service) Wanted(ctx context.Context) ([]grab.Copy, error) {
 	if len(rows) == 0 {
 		return out, nil
 	}
-	facts, err := s.fileFacts(ctx)
+	facts, err := s.fileFacts(ctx, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -175,11 +175,12 @@ func fileQuality(label string) string {
 	return QualityHD
 }
 
-// fileFacts reads every matched file once and groups what it says by title.
-func (s *Service) fileFacts(ctx context.Context) (map[int64]*titleFiles, error) {
+// fileFacts reads every matched file once and groups what it says by title. A
+// titleID that is not 0 reads only that title's files.
+func (s *Service) fileFacts(ctx context.Context, titleID int64) (map[int64]*titleFiles, error) {
 	out := map[int64]*titleFiles{}
 	for off := 0; ; off += filePage {
-		files, total, err := s.lib.Files(ctx, library.FileFilter{State: library.StateMatched, Limit: filePage, Offset: off})
+		files, total, err := s.lib.Files(ctx, library.FileFilter{State: library.StateMatched, TitleID: titleID, Limit: filePage, Offset: off})
 		if err != nil {
 			return nil, err
 		}

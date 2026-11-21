@@ -64,13 +64,13 @@
     const rows: LabelValueItem[] = [];
     const hd = summary.usage.hd;
     const uhd = summary.usage.uhd;
-    if (hd.limit > 0) {
+    if (hd.limit !== null && hd.limit > 0) {
       rows.push({
         label: t('ask.usage.hd'),
         value: t('ask.usage.value', { used: hd.used, limit: hd.limit }),
       });
     }
-    if (choosesQuality && uhd.limit > 0) {
+    if (choosesQuality && uhd.limit !== null && uhd.limit > 0) {
       rows.push({
         label: t('ask.usage.uhd'),
         value: t('ask.usage.value', { used: uhd.used, limit: uhd.limit }),
@@ -78,7 +78,7 @@
     }
     return rows;
   });
-  const atLimit = $derived(!!usage && usage.limit > 0 && usage.used >= usage.limit);
+  const atLimit = $derived(!!usage && usage.limit !== null && usage.used >= usage.limit);
 
   // Once the form is in, put focus on what the person will touch first.
   $effect(() => {

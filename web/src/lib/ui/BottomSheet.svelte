@@ -8,10 +8,12 @@
     title: string;
     /** Called after the sheet has closed, whichever way it closed. */
     onclose?: () => void;
+    /** A wider dialog on desktop (a table of results); on a phone every sheet is full width. */
+    wide?: boolean;
     children: Snippet;
   }
 
-  let { open = $bindable(false), title, onclose, children }: Props = $props();
+  let { open = $bindable(false), title, onclose, wide = false, children }: Props = $props();
 
   const uid = $props.id();
   const titleId = `sheet-title-${uid}`;
@@ -88,6 +90,7 @@
 <dialog
   bind:this={dialog}
   class="sheet"
+  class:wide
   role="dialog"
   aria-modal="true"
   aria-labelledby={titleId}
@@ -155,6 +158,9 @@
       box-shadow:
         inset 0 0 0 1px var(--hairline-strong),
         0 24px 60px rgba(0, 0, 0, 0.5);
+    }
+    .sheet.wide {
+      width: min(960px, calc(100vw - 32px));
     }
     .inner {
       padding: 24px 24px 24px;

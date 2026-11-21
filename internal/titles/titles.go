@@ -21,6 +21,11 @@ const (
 	KindArtist = metadata.KindArtist
 )
 
+// Topic is the hub topic of catalog events: {"id": titleID, "event": "hydrated"}
+// when an artist's albums and tracks have been loaded in the background, or
+// "hydrate_failed" when they could not be. It carries no names.
+const Topic = "titles"
+
 // Errors the web layer maps to HTTP statuses.
 var ErrNotFound = errors.New("titles: no such title")
 
@@ -57,6 +62,17 @@ type Title struct {
 	AddedAt       time.Time `json:"addedAt"`
 	UpdatedAt     time.Time `json:"updatedAt"`
 	RefreshedAt   time.Time `json:"refreshedAt"`
+	// ReleaseDate is a movie's release date (YYYY-MM-DD), empty when unknown.
+	ReleaseDate string `json:"releaseDate"`
+	// LifeSpan is an artist's life span; nil for movies and shows.
+	LifeSpan *LifeSpan `json:"lifeSpan,omitempty"`
+}
+
+// LifeSpan is when an artist (or a band) began and ended, as MusicBrainz writes
+// the dates: 1810-03-01, 1998 or empty. End is empty while it goes on.
+type LifeSpan struct {
+	Begin string `json:"begin"`
+	End   string `json:"end"`
 }
 
 // Season is one season of a show; season 0 holds specials.
@@ -80,11 +96,14 @@ type Episode struct {
 
 // Album is an album or EP of an artist.
 type Album struct {
-	ID        int64   `json:"id"`
-	MBID      string  `json:"mbid"`
-	Name      string  `json:"name"`
-	Year      int     `json:"year"`
-	Type      string  `json:"type"` // album or ep
+	ID   int64  `json:"id"`
+	MBID string `json:"mbid"`
+	Name string `json:"name"`
+	Year int    `json:"year"`
+	Type string `json:"type"` // album or ep
+	// Studio is true for a studio album (MusicBrainz primary type Album with no
+	// secondary types). Only studio albums are monitored by default.
+	Studio    bool    `json:"studio"`
 	Monitored bool    `json:"monitored"`
 	CoverRef  string  `json:"coverRef"`
 	Tracks    []Track `json:"tracks"`

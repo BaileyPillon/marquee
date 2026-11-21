@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/BaileyPillon/marquee/internal/core/db"
+	"github.com/BaileyPillon/marquee/internal/core/pathmap"
 )
 
 // Store is the only place in this package that talks SQL.
@@ -73,10 +74,13 @@ type clientRow struct {
 	LastError      string
 	LastErrorAt    *time.Time
 	CreatedAt      time.Time
+	// PathMap says how the client's folders look from Marquee's side (the
+	// client's From becomes Marquee's To).
+	PathMap []pathmap.Rule
 }
 
 const clientCols = `id, name, kind, url, username, password_sealed, api_key_sealed, category, save_path,
-	enabled, priority, last_ok_at, last_error, last_error_at, created_at`
+	enabled, priority, last_ok_at, last_error, last_error_at, created_at, path_map`
 
 func scanClient(s scanner) (clientRow, error) {
 	var (
@@ -85,12 +89,18 @@ func scanClient(s scanner) (clientRow, error) {
 		enabled           int
 		lastOK, lastErrAt sql.NullString
 		created           string
+		pathMap           string
 	)
 	if err := s.Scan(&c.ID, &c.Name, &c.Kind, &c.URL, &c.Username, &c.PasswordSealed, &c.APIKeySealed, &c.Category,
-		&savePath, &enabled, &c.Priority, &lastOK, &c.LastError, &lastErrAt, &created); err != nil {
+		&savePath, &enabled, &c.Priority, &lastOK, &c.LastError, &lastErrAt, &created, &pathMap); err != nil {
 		return clientRow{}, err
 	}
 	c.SavePath = savePath.String
+	if rules, err := pathmap.Parse(pathMap); err == nil {
+		c.PathMap = rules
+	} else {
+		c.PathMap = []pathmap.Rule{}
+	}
 	c.Enabled = enabled == 1
 	var err error
 	if c.LastOKAt, err = parseOptTS(lastOK); err != nil {
@@ -123,10 +133,10 @@ func boolInt(b bool) int {
 func (s *Store) insertClient(ctx context.Context, c clientRow, now time.Time) (clientRow, error) {
 	res, err := s.db.ExecContext(ctx, `
 		INSERT INTO clients (name, kind, url, username, password_sealed, api_key_sealed, category, save_path,
-		                     enabled, priority, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		                     enabled, priority, created_at, path_map)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		c.Name, c.Kind, c.URL, c.Username, c.PasswordSealed, c.APIKeySealed, c.Category, nullable(c.SavePath),
-		boolInt(c.Enabled), c.Priority, db.TS(now))
+		boolInt(c.Enabled), c.Priority, db.TS(now), pathmap.Encode(c.PathMap))
 	if err != nil {
 		if db.IsUniqueViolation(err) {
 			return clientRow{}, ErrNameTaken
@@ -185,10 +195,10 @@ func (s *Store) queryClients(ctx context.Context, q string, args ...any) ([]clie
 func (s *Store) updateClient(ctx context.Context, c clientRow) error {
 	res, err := s.db.ExecContext(ctx, `
 		UPDATE clients SET name = ?, url = ?, username = ?, password_sealed = ?, api_key_sealed = ?,
-		                   category = ?, save_path = ?, enabled = ?, priority = ?
+		                   category = ?, save_path = ?, enabled = ?, priority = ?, path_map = ?
 		WHERE id = ?`,
 		c.Name, c.URL, c.Username, c.PasswordSealed, c.APIKeySealed, c.Category, nullable(c.SavePath),
-		boolInt(c.Enabled), c.Priority, c.ID)
+		boolInt(c.Enabled), c.Priority, pathmap.Encode(c.PathMap), c.ID)
 	if err != nil {
 		if db.IsUniqueViolation(err) {
 			return ErrNameTaken

@@ -38,6 +38,9 @@ export const icons = {
   arrow: 'M5 12h14 M13 6l6 6-6 6',
   alert: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z M12 7.5v5.5 M12 16.5h.01',
   lock: 'M5 11h14v10H5z M8 11V7a4 4 0 0 1 8 0v4',
+  copy: 'M9 9h11v11H9z M5 15V4h11',
+  edit: 'M4 20l1-4L16.5 4.5a2 2 0 0 1 3 3L8 19l-4 1z M14.5 6.5l3 3',
+  key: 'M14 10a4 4 0 1 1 3 3.9L16 15h-2v2h-2v2H9v-2.2l5.1-5.1A4 4 0 0 1 14 10z M17.5 8.5h.01',
   signOut: 'M10 4H5v16h5 M15 8l4 4-4 4 M19 12H9',
 } as const;
 

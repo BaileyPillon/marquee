@@ -2,7 +2,9 @@
 // Field names follow the Go handlers exactly (internal/web/api_titles.go, api_library.go,
 // api_settings.go). Pages import from here and never build an /api/v1 address themselves.
 import { ApiError, getJSON, patchJSON, postJSON, putJSON, del } from './api';
-import type { MessageKey } from './i18n';
+import { hydration } from './hydration.svelte';
+import { t, type MessageKey } from './i18n';
+import type { RequestItem } from './requestsApi';
 
 /** The server's word for a kind. The UI says "tv" in its own paths and types; see `titlePath`. */
 export type ApiKind = 'movie' | 'show' | 'artist';
@@ -36,6 +38,14 @@ export interface Title {
   addedAt: string;
   updatedAt: string;
   refreshedAt: string;
+  /**
+   * What the library holds for this title. The server sends these on lists and on the detail;
+   * when they are missing (an older server) pages fall back to joining the library's file list.
+   */
+  fileCount?: number;
+  quality?: string;
+  inLibrary?: boolean;
+  sizeBytes?: number;
 }
 
 export interface Season {
@@ -54,6 +64,10 @@ export interface Episode {
   overview: string;
   runtimeMin: number;
   monitored: boolean;
+  /** The library has a file for it. Left out by an older server. */
+  hasFile?: boolean;
+  quality?: string;
+  size?: number;
 }
 
 export interface Track {
@@ -63,6 +77,10 @@ export interface Track {
   name: string;
   lengthMs: number;
   mbid: string;
+  /** The library has a file for it. Left out by an older server. */
+  hasFile?: boolean;
+  quality?: string;
+  size?: number;
 }
 
 export interface Album {
@@ -91,6 +109,8 @@ export interface TitleDetail extends Title {
   episodes: Episode[];
   albums: Album[];
   people: Person[];
+  /** An artist's albums are still being fetched (see `hydration`). */
+  hydrating?: boolean;
 }
 
 export interface TitleList {
@@ -146,7 +166,8 @@ export function listPath(kind: ApiKind): string {
   return '/movies';
 }
 
-function query(params: Record<string, string | number | undefined>): string {
+/** `?a=1&b=2` from the params that have a value (an empty string when none do). */
+export function query(params: Record<string, string | number | boolean | undefined>): string {
   const parts: string[] = [];
   for (const [key, value] of Object.entries(params)) {
     if (value === undefined || value === '') continue;
@@ -192,13 +213,19 @@ export async function addTitle(
   input: { kind: ApiKind; provider: string; providerId: string },
   signal?: AbortSignal,
 ): Promise<TitleDetail> {
-  const detail = await postJSON<TitleDetail>(
+  const answer = await postJSON<TitleDetail | { title: Title; hydrating: true }>(
     'titles',
     { ...input, monitored: true },
     signal,
     ADD_TIMEOUT_MS,
   );
-  return normalise(detail);
+  // An artist can come back as 202 `{title, hydrating:true}`: the title is saved and its albums
+  // arrive later (a `titles` event `{id, event:"hydrated"}`). The page shows "Loading albums…".
+  if ('hydrating' in answer && answer.hydrating === true && 'title' in answer) {
+    hydration.add(answer.title.id);
+    return normalise({ ...answer.title, seasons: [], episodes: [], albums: [], people: [], hydrating: true });
+  }
+  return normalise(answer as TitleDetail);
 }
 
 export async function setMonitored(id: number, monitored: boolean): Promise<TitleDetail> {
@@ -362,15 +389,20 @@ export function putSettings(
 
 export type AskQuality = 'hd' | 'uhd';
 
+/** One quality's asks over the last 7 days. `limit` is null when there is none. */
 export interface Usage {
   used: number;
-  limit: number;
+  limit: number | null;
+  /** When the next ask drops out of the window; null when nothing was asked. */
+  resetsAt?: string | null;
 }
 
 export interface RequestsSummary {
   waitingForYou: number;
   mine: { pending: number; approved: number };
   usage: { hd: Usage; uhd: Usage };
+  /** Not sent yet: the owner's name, so a member's toast can say who must say yes. */
+  owner?: { name: string };
 }
 
 export interface AskTarget {
@@ -381,7 +413,7 @@ export interface AskTarget {
 }
 
 export interface AskAnswer {
-  request: unknown;
+  request: RequestItem;
   autoApproved: boolean;
   usage?: { hd?: Usage; uhd?: Usage };
 }
@@ -435,7 +467,32 @@ export function failureKeyForCode(code: string): MessageKey {
       return 'error.network';
     case 'forbidden':
       return 'error.forbidden';
+    case 'no_grabber':
+      return 'error.noGrabber';
+    case 'no_copy':
+      return 'error.noCopy';
+    case 'not_pending':
+      return 'error.notPending';
+    case 'not_cancellable':
+      return 'error.notCancellable';
+    case 'no_library_folder':
+      return 'error.noFolder';
+    case 'release_gone':
+      return 'error.releaseGone';
+    case 'duplicate':
+      return 'error.duplicate';
+    case 'limit_reached':
+      return 'error.limitReached';
     default:
       return 'error.generic';
   }
+}
+
+/**
+ * The sentence for a failed save in a form. A 400 `invalid_request` carries the server's own plain
+ * words ("Pick at least one resolution."), which say more than any generic line, so they are used.
+ */
+export function failureText(err: unknown): string {
+  if (err instanceof ApiError && err.code === 'invalid_request' && err.message) return err.message;
+  return t(failureKey(err));
 }

@@ -148,7 +148,7 @@ func TestRefreshArtistAddsAlbumsAndFollowsTracks(t *testing.T) {
 	}
 	next.Albums[1].Tracks = nil // Études: the track list is unknown this time
 	next.Albums = append(next.Albums, metadata.AlbumInfo{
-		MBID: "b0000000-0000-4000-8000-000000000103", Title: "Ballades", Year: 2003, Type: "ep",
+		MBID: "b0000000-0000-4000-8000-000000000103", Title: "Ballades", Year: 2003, Type: "album",
 		Cover:  metadata.Image{Ref: "caa/release-group/b0000000-0000-4000-8000-000000000103/front-500"},
 		Tracks: []metadata.TrackInfo{{Disc: 1, Position: 1, Title: "Ballade No. 1", LengthMS: 570000}},
 	})
@@ -177,7 +177,7 @@ func TestRefreshArtistAddsAlbumsAndFollowsTracks(t *testing.T) {
 		t.Errorf("an empty answer must keep the old tracks: %+v", et.Tracks)
 	}
 	bal := byMBID["b0000000-0000-4000-8000-000000000103"]
-	if !bal.Monitored || bal.Type != "ep" || len(bal.Tracks) != 1 {
+	if !bal.Monitored || bal.Type != "album" || len(bal.Tracks) != 1 {
 		t.Errorf("new album = %+v (should follow the artist's monitored flag)", bal)
 	}
 	if after.PosterRef != "caa/release-group/b0000000-0000-4000-8000-000000000103/front-500" {

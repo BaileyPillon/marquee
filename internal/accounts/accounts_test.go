@@ -541,3 +541,41 @@ func TestCleanupRemovesExpired(t *testing.T) {
 		}
 	}
 }
+
+func TestCreateMemberHasNoWayToSignIn(t *testing.T) {
+	s, d := newService(t, nil)
+	mustOwner(t, s)
+	u, err := s.CreateMember(ctx, "  Priya ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if u.Name != "Priya" || u.Role != RoleMember || u.Disabled || u.ID == 0 {
+		t.Errorf("member = %+v", u)
+	}
+	// Not with an empty password, nor the name, nor a guess.
+	for _, pw := range []string{"", "Priya", "password", "correct horse"} {
+		if _, err := s.SignIn(ctx, "Priya", pw, ci); !errors.Is(err, ErrInvalidCredentials) {
+			t.Errorf("sign-in with %q = %v, want invalid credentials", pw, err)
+		}
+	}
+	var n int
+	if err := d.QueryRow(`SELECT COUNT(*) FROM users WHERE role = 'member' AND password_hash LIKE '$argon2id$%'`).Scan(&n); err != nil || n != 1 {
+		t.Errorf("the stored hash is not an argon2id hash (%d, %v)", n, err)
+	}
+
+	if _, err := s.CreateMember(ctx, "priya"); !errors.Is(err, ErrNameTaken) {
+		t.Errorf("same name in another case = %v, want ErrNameTaken", err)
+	}
+	if _, err := s.CreateMember(ctx, "Bailey"); !errors.Is(err, ErrNameTaken) {
+		t.Errorf("the owner's name = %v, want ErrNameTaken", err)
+	}
+	for _, bad := range []string{"", "   ", strings.Repeat("x", 41), "bad\x00name"} {
+		if _, err := s.CreateMember(ctx, bad); !errors.Is(err, ErrInvalidName) {
+			t.Errorf("CreateMember(%q) = %v, want ErrInvalidName", bad, err)
+		}
+	}
+	// An owner is still the only owner.
+	if need, _ := s.NeedsOwner(ctx); need {
+		t.Error("NeedsOwner after members exist")
+	}
+}

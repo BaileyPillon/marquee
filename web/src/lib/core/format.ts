@@ -124,3 +124,87 @@ export function seasonCount(n: number): string {
 export function sentence(text: string): string {
   return text ? text.charAt(0).toUpperCase() + text.slice(1) : text;
 }
+
+/** "12:05" in the reader's own clock. */
+function formatTime(when: Date): string {
+  return new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' }).format(when);
+}
+
+/**
+ * When something happened, short: "Today, 10:48", "Yesterday, 21:05", "Wed, 19:30" for the last
+ * week, then "3 Nov". Empty when the date cannot be read.
+ */
+export function formatWhen(iso: string | null | undefined): string {
+  if (!iso) return '';
+  const when = new Date(iso);
+  if (Number.isNaN(when.getTime())) return '';
+  const today = startOfToday();
+  const day = new Date(when.getFullYear(), when.getMonth(), when.getDate());
+  const days = Math.round((today.getTime() - day.getTime()) / 86_400_000);
+  const time = formatTime(when);
+  if (days === 0) return t('when.today', { time });
+  if (days === 1) return t('when.yesterday', { time });
+  if (days > 1 && days < 7) {
+    const weekday = new Intl.DateTimeFormat(undefined, { weekday: 'short' }).format(when);
+    return t('when.weekday', { weekday, time });
+  }
+  return formatDay(iso);
+}
+
+/** "today", "yesterday", "5 min ago" for the phone card and request lines. */
+export function formatSince(iso: string | null | undefined): string {
+  if (!iso) return '';
+  const when = new Date(iso);
+  if (Number.isNaN(when.getTime())) return '';
+  const today = startOfToday();
+  const day = new Date(when.getFullYear(), when.getMonth(), when.getDate());
+  const days = Math.round((today.getTime() - day.getTime()) / 86_400_000);
+  if (days <= 0) return formatAgo(iso);
+  if (days === 1) return t('since.yesterday');
+  return formatDay(iso);
+}
+
+/** Bytes per second: "14.2 MB/s". */
+export function formatSpeed(bytesPerSecond: number): string {
+  return `${formatBytes(bytesPerSecond)}/s`;
+}
+
+/** Seconds left: "6 min left", "1 h 20 min left". Empty when unknown. */
+export function formatEta(seconds: number | null | undefined): string {
+  if (seconds === null || seconds === undefined || seconds < 0) return '';
+  if (seconds < 60) return t('eta.moment');
+  const minutes = Math.round(seconds / 60);
+  return t('eta.left', { time: formatRuntime(minutes) });
+}
+
+/** A copy's quality in words: "hd" -> "HD", "uhd" -> "4K", anything else as the server wrote it. */
+export function qualityLabel(quality: string): string {
+  if (quality === 'hd') return t('ask.quality.hd.short');
+  if (quality === 'uhd') return t('ask.quality.uhd.short');
+  return quality;
+}
+
+/** "2024-11-03" or a full timestamp to a Date on that local day. */
+export function dayOf(iso: string): Date | undefined {
+  return parseDay(iso);
+}
+
+/** "2026-11-21" for a local Date. */
+export function isoDay(date: Date): string {
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${date.getFullYear()}-${m}-${d}`;
+}
+
+/** "Today", "Yesterday", else "19 Nov": the day something happened. */
+export function formatDayLabel(iso: string | null | undefined): string {
+  if (!iso) return '';
+  const when = new Date(iso);
+  if (Number.isNaN(when.getTime())) return '';
+  const today = startOfToday();
+  const day = new Date(when.getFullYear(), when.getMonth(), when.getDate());
+  const days = Math.round((today.getTime() - day.getTime()) / 86_400_000);
+  if (days <= 0) return t('requests.today');
+  if (days === 1) return t('since.yesterdayCap');
+  return formatDay(iso);
+}

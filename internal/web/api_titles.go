@@ -197,8 +197,12 @@ func (s *Server) handleTitleAdd(w http.ResponseWriter, r *http.Request, _ *accou
 	if in.Monitored != nil {
 		monitored = *in.Monitored
 	}
-	d, created, err := s.Titles.Add(r.Context(), in.Kind, in.Provider, string(in.ProviderID),
-		titles.AddOptions{Monitored: monitored, RootFolder: in.RootFolder})
+	opts := titles.AddOptions{Monitored: monitored, RootFolder: in.RootFolder}
+	if in.Kind == titles.KindArtist {
+		s.handleArtistAdd(w, r, in.Provider, string(in.ProviderID), opts)
+		return
+	}
+	d, created, err := s.Titles.Add(r.Context(), in.Kind, in.Provider, string(in.ProviderID), opts)
 	if err != nil {
 		s.titlesError(w, r, err)
 		return
@@ -207,7 +211,42 @@ func (s *Server) handleTitleAdd(w http.ResponseWriter, r *http.Request, _ *accou
 	if created {
 		status = http.StatusCreated
 	}
-	writeJSON(w, status, d)
+	s.writeDetail(w, r, status, d)
+}
+
+// handleArtistAdd stores the artist at once and answers 202 {"title", "hydrating": true};
+// the albums and tracks load in the background, and a "titles" event
+// {"id", "event": "hydrated"} goes out on the event stream when they are in.
+// An artist that is already complete answers 200 with "hydrating": false.
+func (s *Server) handleArtistAdd(w http.ResponseWriter, r *http.Request, provider, providerID string, opts titles.AddOptions) {
+	d, created, hydrating, err := s.Titles.AddAsync(r.Context(), titles.KindArtist, provider, providerID, opts)
+	if err != nil {
+		s.titlesError(w, r, err)
+		return
+	}
+	view, err := s.detailView(r.Context(), d)
+	if err != nil {
+		s.internalError(w, r, err)
+		return
+	}
+	status := http.StatusOK
+	switch {
+	case hydrating:
+		status = http.StatusAccepted
+	case created:
+		status = http.StatusCreated // the provider had no quick answer: it was added whole
+	}
+	writeJSON(w, status, artistAdded{Title: view, Hydrating: hydrating})
+}
+
+// writeDetail answers with a title and what is on disk for it.
+func (s *Server) writeDetail(w http.ResponseWriter, r *http.Request, status int, d *titles.Detail) {
+	view, err := s.detailView(r.Context(), d)
+	if err != nil {
+		s.internalError(w, r, err)
+		return
+	}
+	writeJSON(w, status, view)
 }
 
 func (s *Server) handleTitleList(w http.ResponseWriter, r *http.Request, _ *accounts.Principal) {
@@ -238,7 +277,12 @@ func (s *Server) handleTitleList(w http.ResponseWriter, r *http.Request, _ *acco
 		s.titlesError(w, r, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, res)
+	view, err := s.listView(r.Context(), res)
+	if err != nil {
+		s.internalError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, view)
 }
 
 func (s *Server) handleTitleGet(w http.ResponseWriter, r *http.Request, _ *accounts.Principal) {
@@ -252,7 +296,7 @@ func (s *Server) handleTitleGet(w http.ResponseWriter, r *http.Request, _ *accou
 		s.titlesError(w, r, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, d)
+	s.writeDetail(w, r, http.StatusOK, d)
 }
 
 func (s *Server) handleTitlePatch(w http.ResponseWriter, r *http.Request, _ *accounts.Principal) {
@@ -280,7 +324,7 @@ func (s *Server) handleTitlePatch(w http.ResponseWriter, r *http.Request, _ *acc
 		s.titlesError(w, r, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, d)
+	s.writeDetail(w, r, http.StatusOK, d)
 }
 
 // handleTitleDelete removes the catalog rows of a title. It never deletes files.
@@ -308,7 +352,7 @@ func (s *Server) handleTitleRefresh(w http.ResponseWriter, r *http.Request, _ *a
 		s.titlesError(w, r, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, d)
+	s.writeDetail(w, r, http.StatusOK, d)
 }
 
 // ---- metadata status -------------------------------------------------------

@@ -9,22 +9,28 @@
   import Chip from '../lib/ui/Chip.svelte';
   import DataTable, { type DataColumn } from '../lib/ui/DataTable.svelte';
   import Hero from '../lib/ui/Hero.svelte';
+  import HistoryPanel from '../lib/ui/HistoryPanel.svelte';
   import LoadFailed from '../lib/ui/LoadFailed.svelte';
   import PageSkeleton from '../lib/ui/PageSkeleton.svelte';
   import Panel from '../lib/ui/Panel.svelte';
+  import ReleasesPanel from '../lib/ui/ReleasesPanel.svelte';
   import SectionHead from '../lib/ui/SectionHead.svelte';
   import TitleNotFound from '../lib/ui/TitleNotFound.svelte';
   import TitleToolbar from '../lib/ui/TitleToolbar.svelte';
   import { keysArt } from '../lib/ui/art';
   import { ApiError } from '../lib/core/api';
   import { getTitle, titlePath, type Album } from '../lib/core/catalog';
+  import { onEvent, onResync } from '../lib/core/events';
   import { formatDay, formatTrackLength, sentence } from '../lib/core/format';
+  import { hydration } from '../lib/core/hydration.svelte.ts';
   import { t } from '../lib/core/i18n';
   import { libraryIndex } from '../lib/core/libraryIndex.svelte.ts';
   import { posterColor } from '../lib/core/posters';
   import { resource } from '../lib/core/resource.svelte.ts';
   import { navigate, type Match } from '../lib/core/router';
+  import { session } from '../lib/core/session.svelte';
   import { heroTheme } from '../lib/core/themes';
+  import { trackFile } from '../lib/core/titleFiles';
   import type { Status } from '../lib/core/types';
 
   interface Props {
@@ -46,7 +52,44 @@
     if (d && d.kind !== 'artist') navigate(titlePath(d.kind, d.id), { replace: true });
   });
 
-  const known = $derived(libraryIndex.status === 'ready');
+  const firstTrack = $derived(d?.albums.find((a) => a.tracks.length > 0)?.tracks[0]);
+  const known = $derived(firstTrack ? trackFile(firstTrack) !== undefined : libraryIndex.status === 'ready');
+  const role = $derived(session.me?.role);
+  const canManage = $derived(role === 'owner' || role === 'admin');
+
+  // ---- albums that are still being fetched (adding an artist answers before they are in) ----
+  const hydrating = $derived(!!d && d.albums.length === 0 && (d.hydrating === true || hydration.has(d.id)));
+
+  /** Fetch the artist again without blanking the page. */
+  async function refresh(): Promise<void> {
+    if (!d) return;
+    try {
+      const fresh = await getTitle(String(d.id));
+      page.set(fresh);
+      if (!fresh.hydrating || fresh.albums.length > 0) hydration.done(fresh.id);
+    } catch {
+      // The next event or tick tries again.
+    }
+  }
+
+  onMount(() => {
+    const stop = onEvent('titles', (raw) => {
+      const ev = raw as { id?: number; event?: string };
+      if (ev.event === 'hydrated' && d && ev.id === d.id) void refresh();
+    });
+    const stopResync = onResync(() => void refresh());
+    return () => {
+      stop();
+      stopResync();
+    };
+  });
+
+  // The event may have come before this page was listening: while albums are loading, look again every few seconds.
+  $effect(() => {
+    if (!hydrating) return;
+    const timer = window.setInterval(() => void refresh(), 4000);
+    return () => window.clearInterval(timer);
+  });
 
   // ---- albums ----
   const albums = $derived(
@@ -56,7 +99,7 @@
         )
       : [],
   );
-  const inLibrary = (a: Album): boolean => a.tracks.some((tr) => libraryIndex.tracks.has(tr.id));
+  const inLibrary = (a: Album): boolean => a.tracks.some((tr) => trackFile(tr)?.has === true);
   const haveAlbums = $derived(known ? albums.filter(inLibrary).length : 0);
   let allAlbums = $state(false);
   const shownAlbums = $derived(allAlbums ? albums : albums.slice(0, ALBUMS_SHOWN));
@@ -80,16 +123,15 @@
   }
   const trackRows = $derived.by<TrackRow[]>(() => {
     const all = albums.flatMap((a) => a.tracks.map((tr) => ({ a, tr })));
-    const listed = known ? all.filter(({ tr }) => libraryIndex.tracks.has(tr.id)) : all;
+    const listed = known ? all.filter(({ tr }) => trackFile(tr)?.has === true) : all;
     return listed.map(({ a, tr }, i) => {
-      const file = libraryIndex.tracks.get(tr.id);
-      const ext = file?.relPath.split('.').pop()?.toUpperCase() ?? '';
+      const file = trackFile(tr);
       return {
         num: i + 1,
         title: tr.name,
         album: a.name,
         length: formatTrackLength(tr.lengthMs),
-        format: file?.quality || ext,
+        format: file?.quality || file?.format || '',
       };
     });
   });
@@ -175,14 +217,18 @@
   <section class="block" aria-labelledby={albumsId}>
     <SectionHead title={t('artist.albums')} id={albumsId}>
       <span class="note">
-        {known
+        {hydrating
+          ? ''
+          : known
           ? t('artist.albumsHave', { have: haveAlbums, total: albums.length })
           : albums.length === 1
             ? t('artist.albumsOne')
             : t('artist.albumsTotal', { n: albums.length })}
       </span>
     </SectionHead>
-    {#if albums.length === 0}
+    {#if albums.length === 0 && hydrating}
+      <p class="empty" role="status" aria-busy="true">{t('artist.loadingAlbums')}</p>
+    {:else if albums.length === 0}
       <p class="empty">{t('artist.noAlbums')}</p>
     {:else}
       <div class="albums">
@@ -258,6 +304,14 @@
       </Panel>
     {/if}
   </section>
+
+  {#if canManage}
+    <div class="block">
+      <ReleasesPanel titleId={d.id} name={d.name} kind="artist" quality="hd" />
+    </div>
+  {/if}
+
+  <div class="block"><HistoryPanel titleId={d.id} /></div>
 
   <AlsoInLibrary kind="artist" exceptId={d.id} heading={t('artist.moreInLibrary')} />
 

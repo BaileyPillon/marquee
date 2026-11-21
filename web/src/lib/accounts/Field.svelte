@@ -5,7 +5,11 @@
   interface Props {
     label: string;
     value: string;
-    type?: 'text' | 'password';
+    type?: 'text' | 'password' | 'url' | 'email';
+    inputmode?: HTMLInputAttributes['inputmode'];
+    placeholder?: string;
+    readonly?: boolean;
+    disabled?: boolean;
     name?: string;
     autocomplete?: HTMLInputAttributes['autocomplete'];
     required?: boolean;
@@ -21,6 +25,10 @@
     label,
     value = $bindable(),
     type = 'text',
+    inputmode,
+    placeholder,
+    readonly = false,
+    disabled = false,
     name,
     autocomplete,
     required = false,
@@ -50,6 +58,10 @@
     {id}
     {name}
     {type}
+    {inputmode}
+    {placeholder}
+    {readonly}
+    {disabled}
     {autocomplete}
     {required}
     {onblur}

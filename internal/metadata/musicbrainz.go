@@ -71,6 +71,7 @@ func newMusicBrainz(hc *outbound.Client, cache *Cache, rawBase string) (*MusicBr
 
 type mbLifeSpan struct {
 	Begin string `json:"begin"`
+	End   string `json:"end"`
 	Ended bool   `json:"ended"`
 }
 
@@ -158,13 +159,10 @@ func (m *MusicBrainz) SearchArtists(ctx context.Context, query string) ([]Search
 	return hits, nil
 }
 
-// Artist returns an artist with their albums and EPs, newest first, and the
-// track list of each. MusicBrainz allows one request a second, so reading an
-// album takes two seconds; one call reads at most mbTrackAlbumsPerCall albums
-// that are not already cached, and returns the rest without tracks. Every
-// request is cached as it finishes, so a retry after a failure, or the next
-// refresh, carries on where the last call stopped.
-func (m *MusicBrainz) Artist(ctx context.Context, id string) (*ArtistInfo, error) {
+// ArtistBase returns the artist alone: names, genres and life span, with no
+// albums. It is one request, so a caller can show the artist at once and read
+// the albums (Artist) afterwards. Artist reuses its cached answer.
+func (m *MusicBrainz) ArtistBase(ctx context.Context, id string) (*ArtistInfo, error) {
 	id = strings.ToLower(strings.TrimSpace(id))
 	if !IsMBID(id) {
 		return nil, notFound(ProviderMusicBrainz)
@@ -183,7 +181,7 @@ func (m *MusicBrainz) Artist(ctx context.Context, id string) (*ArtistInfo, error
 	info := &ArtistInfo{
 		MBID: a.ID, Name: cleanText(a.Name), SortName: cleanText(a.SortName),
 		Type: a.Type, Country: a.Country, Disambiguation: cleanText(a.Disambiguation),
-		Year: year(a.LifeSpan.Begin), Ended: a.LifeSpan.Ended,
+		Year: year(a.LifeSpan.Begin), Begin: a.LifeSpan.Begin, End: a.LifeSpan.End, Ended: a.LifeSpan.Ended,
 		Genres: []string{}, AltNames: []string{}, Albums: []AlbumInfo{},
 	}
 	if info.MBID == "" {
@@ -202,6 +200,20 @@ func (m *MusicBrainz) Artist(ctx context.Context, id string) (*ArtistInfo, error
 		}
 		seen[strings.ToLower(n)] = true
 		info.AltNames = append(info.AltNames, n)
+	}
+	return info, nil
+}
+
+// Artist returns an artist with their albums and EPs, newest first, and the
+// track list of each. MusicBrainz allows one request a second, so reading an
+// album takes two seconds; one call reads at most mbTrackAlbumsPerCall albums
+// that are not already cached, and returns the rest without tracks. Every
+// request is cached as it finishes, so a retry after a failure, or the next
+// refresh, carries on where the last call stopped.
+func (m *MusicBrainz) Artist(ctx context.Context, id string) (*ArtistInfo, error) {
+	info, err := m.ArtistBase(ctx, id)
+	if err != nil {
+		return nil, err
 	}
 
 	groups, err := m.releaseGroups(ctx, info.MBID)
@@ -223,9 +235,10 @@ func (m *MusicBrainz) Artist(ctx context.Context, id string) (*ArtistInfo, error
 		album := AlbumInfo{
 			MBID: rg.ID, Title: cleanText(rg.Title),
 			Year: year(rg.FirstReleaseDate), ReleaseDate: rg.FirstReleaseDate,
-			Type:   strings.ToLower(rg.PrimaryType),
-			Cover:  Image{Ref: "caa/release-group/" + rg.ID + "/front-500", Kind: "cover"},
-			Tracks: []TrackInfo{},
+			Type:           strings.ToLower(rg.PrimaryType),
+			SecondaryTypes: append([]string{}, rg.SecondaryTypes...),
+			Cover:          Image{Ref: "caa/release-group/" + rg.ID + "/front-500", Kind: "cover"},
+			Tracks:         []TrackInfo{},
 		}
 		if err := m.fillTracks(ctx, &album, spend); err != nil {
 			return nil, err

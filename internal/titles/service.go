@@ -11,10 +11,12 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 	"unicode"
 
 	"github.com/BaileyPillon/marquee/internal/core/db"
+	"github.com/BaileyPillon/marquee/internal/core/events"
 	"github.com/BaileyPillon/marquee/internal/metadata"
 )
 
@@ -33,6 +35,12 @@ type Options struct {
 	// RefreshConcurrency is how many titles the scheduled refresh updates at
 	// once (default 3).
 	RefreshConcurrency int
+	// Hub gets a "titles" event when an artist's albums finish loading.
+	// Optional; SetHub can supply it later.
+	Hub *events.Hub
+	// HydrateTimeout bounds how long one artist's albums may take to load in
+	// the background (default 15 minutes).
+	HydrateTimeout time.Duration
 }
 
 // Service is the catalog.
@@ -42,6 +50,17 @@ type Service struct {
 	log   *slog.Logger
 	now   func() time.Time
 	conc  int
+
+	hub        atomic.Pointer[events.Hub]
+	hydrateFor time.Duration
+
+	// Background loading of artists' albums.
+	mu       sync.Mutex
+	closed   bool
+	baseCtx  context.Context
+	cancel   context.CancelFunc
+	wg       sync.WaitGroup
+	hydrates map[int64]bool // title ids being loaded now
 }
 
 // NewService builds the catalog on the main database.
@@ -55,7 +74,28 @@ func NewService(d *sql.DB, p Providers, o Options) *Service {
 	if o.RefreshConcurrency <= 0 {
 		o.RefreshConcurrency = 3
 	}
-	return &Service{store: NewStore(d), p: p, log: o.Logger, now: o.Now, conc: o.RefreshConcurrency}
+	if o.HydrateTimeout <= 0 {
+		o.HydrateTimeout = 15 * time.Minute
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	s := &Service{
+		store: NewStore(d), p: p, log: o.Logger, now: o.Now, conc: o.RefreshConcurrency,
+		hydrateFor: o.HydrateTimeout, baseCtx: ctx, cancel: cancel, hydrates: map[int64]bool{},
+	}
+	s.hub.Store(o.Hub)
+	return s
+}
+
+// SetHub sets the hub that gets the "titles" events (see Topic).
+func (s *Service) SetHub(h *events.Hub) { s.hub.Store(h) }
+
+// Close stops the background loading of albums and waits for it to end.
+func (s *Service) Close() {
+	s.mu.Lock()
+	s.closed = true
+	s.mu.Unlock()
+	s.cancel()
+	s.wg.Wait()
 }
 
 // ---- Lookup ----------------------------------------------------------------
@@ -212,7 +252,14 @@ func (s *Service) Add(ctx context.Context, kind, provider, providerID string, op
 	if err != nil {
 		return nil, false, err
 	}
+	return s.insertNew(ctx, kind, fresh)
+}
 
+// insertNew saves a title fetched from its provider and returns it. A title
+// that turns out to be in the catalog already (added at the same moment by
+// someone else, or the provider gave an id that another row holds) is returned
+// as it is, with created false.
+func (s *Service) insertNew(ctx context.Context, kind string, fresh *Detail) (d *Detail, created bool, err error) {
 	var newID int64
 	err = s.store.inTx(ctx, func(q queries) error {
 		var err error
@@ -220,8 +267,6 @@ func (s *Service) Add(ctx context.Context, kind, provider, providerID string, op
 		return err
 	})
 	if db.IsUniqueViolation(err) {
-		// Added at the same moment by someone else, or the provider gave us an
-		// id (the IMDb one, say) that another row already holds.
 		if existing, ok, ferr := s.store.q().findExisting(ctx, kind, fresh.ids()); ferr == nil && ok {
 			d, err := s.Get(ctx, existing)
 			return d, false, err
@@ -233,6 +278,127 @@ func (s *Service) Add(ctx context.Context, kind, provider, providerID string, op
 	s.log.Info("title added", "id", newID, "kind", kind, "name", fresh.Name)
 	d, err = s.Get(ctx, newID)
 	return d, true, err
+}
+
+// AddAsync is Add with one difference: an artist is stored as soon as the
+// artist itself is known (one request), and the albums and tracks, which take
+// a minute or more at MusicBrainz's pace, are loaded in the background.
+// hydrating says that is still going on; when it ends a "titles" event
+// {"id", "event":"hydrated"} goes out on the hub (or "hydrate_failed").
+//
+// Movies and shows are added as Add adds them, and hydrating is false. So is
+// the answer for an artist that was already complete, and for an artist whose
+// provider cannot answer with the artist alone.
+func (s *Service) AddAsync(ctx context.Context, kind, provider, providerID string, opts AddOptions) (d *Detail, created, hydrating bool, err error) {
+	bp, ok := s.p.Artists.(metadata.ArtistBaseProvider)
+	if kind != KindArtist || s.p.Artists == nil || !ok {
+		d, created, err = s.Add(ctx, kind, provider, providerID, opts)
+		return d, created, false, err
+	}
+	if provider != metadata.ProviderFor(kind) {
+		return nil, false, false, invalid("A " + kind + " comes from " + metadata.ProviderFor(kind) + ", not " + strconv.Quote(provider) + ".")
+	}
+	pid, id, err := cleanProviderID(kind, providerID)
+	if err != nil {
+		return nil, false, false, err
+	}
+	opts.RootFolder, err = cleanRootFolder(opts.RootFolder)
+	if err != nil {
+		return nil, false, false, err
+	}
+
+	if existing, found, err := s.store.q().findExisting(ctx, kind, id); err != nil {
+		return nil, false, false, err
+	} else if found {
+		d, err := s.Get(ctx, existing)
+		if err != nil {
+			return nil, false, false, err
+		}
+		// An artist that was stored but never got its albums (the load failed,
+		// or the program stopped) is loaded again.
+		hydrating = s.Hydrating(d.ID) || (len(d.Albums) == 0 && s.startHydrate(d.ID))
+		return d, false, hydrating, nil
+	}
+
+	info, err := bp.ArtistBase(ctx, pid)
+	if err != nil {
+		return nil, false, false, err
+	}
+	fresh, err := fromArtist(info, opts)
+	if err != nil {
+		return nil, false, false, err
+	}
+	d, created, err = s.insertNew(ctx, kind, fresh)
+	if err != nil {
+		return nil, false, false, err
+	}
+	if created {
+		hydrating = s.startHydrate(d.ID)
+	} else {
+		hydrating = s.Hydrating(d.ID) || (len(d.Albums) == 0 && s.startHydrate(d.ID))
+	}
+	return d, created, hydrating, nil
+}
+
+// Hydrating reports whether an artist's albums are being loaded right now.
+func (s *Service) Hydrating(id int64) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.hydrates[id]
+}
+
+// startHydrate begins loading an artist's albums and tracks in the background.
+// It reports whether a load is running for the title afterwards (false only
+// when the service is closed).
+func (s *Service) startHydrate(id int64) bool {
+	s.mu.Lock()
+	if s.closed {
+		s.mu.Unlock()
+		return false
+	}
+	if s.hydrates[id] {
+		s.mu.Unlock()
+		return true
+	}
+	s.hydrates[id] = true
+	s.wg.Add(1)
+	s.mu.Unlock()
+
+	go func() {
+		defer s.wg.Done()
+		ctx, cancel := context.WithTimeout(s.baseCtx, s.hydrateFor)
+		defer cancel()
+		err := s.hydrateArtist(ctx, id)
+		s.mu.Lock()
+		delete(s.hydrates, id)
+		s.mu.Unlock()
+		event := "hydrated"
+		if err != nil {
+			event = "hydrate_failed"
+			if s.baseCtx.Err() == nil { // not just the program shutting down
+				s.log.Warn("could not load an artist's albums", "id", id, "err", err)
+			}
+		}
+		if h := s.hub.Load(); h != nil && s.baseCtx.Err() == nil {
+			h.Publish(Topic, map[string]any{"id": id, "event": event})
+		}
+	}()
+	return true
+}
+
+// hydrateArtist reads the artist's albums and tracks and adds them to the
+// catalog row that AddAsync stored. The monitored flag is read now, so a
+// change made while the albums were loading is kept.
+func (s *Service) hydrateArtist(ctx context.Context, id int64) error {
+	t, err := s.store.q().title(ctx, id)
+	if err != nil {
+		return err // deleted meanwhile
+	}
+	fresh, err := s.fetch(ctx, KindArtist, t.MBID, AddOptions{Monitored: t.Monitored, RootFolder: t.RootFolder})
+	if err != nil {
+		return err
+	}
+	return s.store.inTx(ctx, func(q queries) error { return q.refresh(ctx, id, fresh, s.now()) })
 }
 
 // cleanProviderID checks and normalises an id as the provider writes it.
@@ -340,7 +506,8 @@ func (s *Service) List(ctx context.Context, f ListFilter) (*ListResult, error) {
 }
 
 // SetMonitored turns monitoring of a title, and of everything under it, on or
-// off. Turning it on leaves specials off.
+// off. Turning it on leaves specials off, and for an artist turns on the studio
+// albums only (MonitorAlbums turns the others on by name).
 func (s *Service) SetMonitored(ctx context.Context, id int64, monitored bool) error {
 	return s.store.inTx(ctx, func(q queries) error { return q.setMonitored(ctx, id, monitored) })
 }

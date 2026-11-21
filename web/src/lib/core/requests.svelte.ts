@@ -1,7 +1,9 @@
 // The asks summary: what is waiting for the owner, and how much of this week's allowance a person
 // has used. The requests API (M4) may not be built yet; until `GET /requests/summary` answers, this
-// stays "unavailable" and nothing in the shell shows a number.
+// stays "unavailable" and nothing in the shell shows a number. Once it answers, the `requests` event
+// stream keeps it fresh: an ask arriving, approved or declined makes the rail badge move at once.
 import { getRequestsSummary, isRouteMissing, type RequestsSummary } from './catalog';
+import { debounce, onEvent, onResync } from './events';
 
 export type RequestsAvailability = 'unknown' | 'ready' | 'unavailable';
 
@@ -13,6 +15,8 @@ class RequestsState {
   availability = $state<RequestsAvailability>('unknown');
   /** Asks waiting for this person's yes (owner and admin), 0 when none or not known. */
   readonly waiting = $derived(this.summary?.waitingForYou ?? 0);
+  /** The owner's name, when the server says it (it is how a member's toast names who must say yes). */
+  readonly ownerName = $derived(this.summary?.owner?.name ?? '');
 
   #run = 0;
 
@@ -45,6 +49,11 @@ class RequestsState {
   start(): () => void {
     let timer: number | undefined;
     let alive = true;
+    const soon = debounce(() => void this.refresh(), 250);
+    const stopEvents = onEvent('requests', () => {
+      if (this.availability !== 'unavailable') soon.call();
+    });
+    const stopResync = onResync(() => void this.refresh());
     const tick = async (): Promise<void> => {
       if (document.visibilityState !== 'hidden') await this.refresh();
       if (!alive) return;
@@ -54,6 +63,9 @@ class RequestsState {
     return () => {
       alive = false;
       window.clearTimeout(timer);
+      soon.cancel();
+      stopEvents();
+      stopResync();
     };
   }
 

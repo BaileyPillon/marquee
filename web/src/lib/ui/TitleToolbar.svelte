@@ -1,6 +1,7 @@
 <script lang="ts">
   import Button from './Button.svelte';
   import Icon from './Icon.svelte';
+  import OpenInButton from './OpenInButton.svelte';
   import Toast from './Toast.svelte';
   import Toggle from './Toggle.svelte';
   import { failureKey, refreshTitle, setMonitored, type TitleDetail } from '../core/catalog';
@@ -61,6 +62,7 @@
   {#if askLabel && onask}
     <Button variant="primary" onclick={onask}>{askLabel}</Button>
   {/if}
+  <OpenInButton titleId={detail.id} />
   {#if canManage}
     <Toggle checked={monitored} label={monitorLabel} onchange={toggle} />
   {/if}

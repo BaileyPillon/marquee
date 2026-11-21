@@ -1,7 +1,6 @@
 // Loads the data of one page. Call it while a component is being set up (it uses an effect).
 //
-// `load` is any function that returns a promise: a mock from lib/mock, or a call through
-// api.ts. Late answers for an earlier key are dropped (and the call is aborted), and `reload()`
+// `load` is any function that returns a promise: usually a call through api.ts. Late answers for an earlier key are dropped (and the call is aborted), and `reload()`
 // asks again.
 
 export interface Resource<T> {

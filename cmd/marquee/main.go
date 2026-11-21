@@ -138,10 +138,24 @@ func serve(ctx context.Context, log *slog.Logger, addr, configDir string) error 
 	// downloadGrabber(dl); the importer will be set with dl.SetCompletedHandler.
 	dl := newDownloads(mainDB, hub, hc, box, log)
 
+	// The history of each title (importer.go): asks, approvals and declines come
+	// from requests; "grabbed" is written by the grabber wrapper below.
+	hist := newHistory(mainDB, reqs, log)
+
 	// Sources, quality profiles and release search (sources.go). The search is
 	// what an approved ask starts, and it sends its pick to the download client.
-	rf := newReleaseFinding(mainDB, hc, box, catalog, lib, reqs, downloadGrabber(dl), log)
+	rf := newReleaseFinding(mainDB, hc, box, catalog, lib, reqs, recordedGrabber(downloadGrabber(dl), hist), log)
 	reqs.SetSearcher(rf.Search)
+
+	// The importer and the media servers (importer.go): a finished download goes
+	// into the library, and Jellyfin, Emby and Plex are told.
+	imp := newImportSide(mainDB, hub, hc, box, dl, reqs, lib, catalog, rf, hist, log)
+	defer imp.Importer.Close()
+
+	// Plex watchlists, the calendar and alerts (extras.go).
+	ex := newExtras(extrasDeps{DB: mainDB, Hub: hub, HTTP: hc, Box: box, Settings: cfg, Accounts: acc,
+		Shows: meta.TVmaze, HasTMDBKey: meta.TMDB.HasKey, Catalog: catalog, Requests: reqs, Downloads: dl, Log: log})
+	defer ex.Close()
 
 	sched := jobs.New(log)
 	if err := sched.Every("accounts-cleanup", time.Hour, acc.Cleanup); err != nil {
@@ -159,6 +173,12 @@ func serve(ctx context.Context, log *slog.Logger, addr, configDir string) error 
 	if err := registerReleaseJobs(sched, rf); err != nil {
 		return err
 	}
+	if err := registerImportJobs(sched, imp.Importer); err != nil {
+		return err
+	}
+	if err := ex.registerJobs(sched); err != nil {
+		return err
+	}
 	sched.Start()
 	defer sched.Stop()
 
@@ -166,23 +186,32 @@ func serve(ctx context.Context, log *slog.Logger, addr, configDir string) error 
 	if err != nil {
 		return err
 	}
+	// Claude's way in (mcp.go): /mcp, with per-key permissions; it can ask, never approve.
+	mcpSvc := newMCP(mainDB, version, acc, cfg, meta, catalog, reqs, dl, rf.Sources, log)
 	srv := web.New(web.Deps{
-		Version:   version,
-		Log:       log,
-		MainDB:    mainDB,
-		EventsDB:  eventsDB,
-		Accounts:  acc,
-		Settings:  cfg,
-		Hub:       hub,
-		Metadata:  meta,
-		Titles:    catalog,
-		Library:   lib,
-		Downloads: dl,
-		Requests:  reqs,
-		Sources:   rf.Sources,
-		Decide:    rf.Decide,
-		Search:    rf.Search,
-		UI:        dist,
+		Version:      version,
+		Log:          log,
+		MainDB:       mainDB,
+		EventsDB:     eventsDB,
+		Accounts:     acc,
+		Settings:     cfg,
+		Hub:          hub,
+		Metadata:     meta,
+		Titles:       catalog,
+		Library:      lib,
+		Downloads:    dl,
+		Requests:     reqs,
+		Sources:      rf.Sources,
+		Decide:       rf.Decide,
+		Search:       rf.Search,
+		Importer:     imp.Importer,
+		MediaServers: imp.Servers,
+		History:      hist,
+		Watchlists:   ex.Watchlists,
+		Calendar:     ex.Calendar,
+		Alerts:       ex.Alerts,
+		MCP:          mcpSvc,
+		UI:           dist,
 	})
 
 	ln, err := net.Listen("tcp", addr)

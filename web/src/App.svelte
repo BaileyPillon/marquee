@@ -10,6 +10,7 @@
   import { ping } from './lib/core/api';
   import { t } from './lib/core/i18n';
   import { isDesktop } from './lib/core/media';
+  import { peopleState } from './lib/core/people.svelte';
   import { requestsState } from './lib/core/requests.svelte';
   import { current, navigate, startRouter, type Section } from './lib/core/router';
   import { session } from './lib/core/session.svelte';
@@ -30,6 +31,7 @@
   $effect(() => {
     if (!session.me) {
       requestsState.clear();
+      peopleState.clear();
       return;
     }
     return requestsState.start();

@@ -3,12 +3,14 @@ package web
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strconv"
 	"strings"
 	"sync"
@@ -20,6 +22,7 @@ import (
 	"github.com/BaileyPillon/marquee/internal/core/events"
 	"github.com/BaileyPillon/marquee/internal/core/outbound"
 	"github.com/BaileyPillon/marquee/internal/core/secrets"
+	"github.com/BaileyPillon/marquee/internal/library"
 	"github.com/BaileyPillon/marquee/internal/metadata"
 	"github.com/BaileyPillon/marquee/internal/settings"
 	"github.com/BaileyPillon/marquee/internal/titles"
@@ -113,6 +116,8 @@ type catalogApp struct {
 	evil   *upstream // an image host that must never be contacted
 	artDir string
 	meta   *metadata.Service
+	cat    *titles.Service
+	lib    *library.Service
 }
 
 func newCatalogApp(t *testing.T) *catalogApp {
@@ -197,18 +202,21 @@ func newCatalogApp(t *testing.T) *catalogApp {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cat := titles.NewService(mainDB, titles.Providers{Movies: meta.TMDB, Shows: meta.TVmaze, Artists: meta.MusicBrainz}, titles.Options{Logger: log})
+	cat := titles.NewService(mainDB, titles.Providers{Movies: meta.TMDB, Shows: meta.TVmaze, Artists: meta.MusicBrainz}, titles.Options{Logger: log, Hub: hub})
+	t.Cleanup(cat.Close)
+	lib := library.NewService(mainDB, library.Options{Logger: log, Hub: hub})
+	t.Cleanup(lib.Close)
 
 	s := New(Deps{
 		Version: "9.9.9-test", Log: log, MainDB: mainDB, EventsDB: eventsDB,
 		Accounts: accounts.NewService(mainDB, accounts.Options{Logger: log, PasswordParams: lightParams}),
-		Settings: cfg, Hub: hub, Metadata: meta, Titles: cat, UI: testUI(),
+		Settings: cfg, Hub: hub, Metadata: meta, Titles: cat, Library: lib, UI: testUI(),
 	})
 	srv := httptest.NewServer(s.Handler())
 	t.Cleanup(srv.Close)
 	return &catalogApp{
 		app: &app{t: t, srv: srv, mainDB: mainDB, settings: cfg, hub: hub},
-		up:  up, evil: evil, artDir: artDir, meta: meta,
+		up:  up, evil: evil, artDir: artDir, meta: meta, cat: cat, lib: lib,
 	}
 }
 
@@ -416,21 +424,51 @@ func TestAddListGetPatchRefreshDelete(t *testing.T) {
 		t.Errorf("TVmaze asked %d times, want 1", n)
 	}
 
-	// An artist, with albums and tracks.
+	// An artist: stored at once (202), the albums and tracks load in the background.
+	hydrated := a.waitTitlesEvent(t, "hydrated")
 	r = owner.do("POST", "/api/v1/titles", map[string]any{"kind": "artist", "provider": "musicbrainz", "providerId": chopinMBID})
-	if r.Status != http.StatusCreated {
+	if r.Status != http.StatusAccepted {
 		t.Fatalf("add artist = %d %s", r.Status, r.Body)
 	}
-	albums := r.JSON(t)["albums"].([]any)
-	if len(albums) != 3 || r.JSON(t)["monitored"] != true { // monitored defaults to true
+	body = r.JSON(t)
+	artist, _ := body["title"].(map[string]any)
+	if body["hydrating"] != true || artist == nil || artist["monitored"] != true { // monitored defaults to true
 		t.Fatalf("artist = %s", r.Body)
 	}
+	artistID := artist["id"].(float64)
+	if artist["name"] != "Frédéric Chopin" || artist["kind"] != "artist" {
+		t.Errorf("artist = %v", artist)
+	}
+	if ls, _ := artist["lifeSpan"].(map[string]any); ls["begin"] != "1810-03-01" || ls["end"] != "1849-10-17" {
+		t.Errorf("life span = %v", artist["lifeSpan"])
+	}
+	if got := hydrated(); got != artistID {
+		t.Fatalf("hydrated event for title %v, want %v", got, artistID)
+	}
+	r = owner.send("GET", "/api/v1/titles/"+strconv.Itoa(int(artistID)), nil)
+	detail := r.JSON(t)
+	albums := detail["albums"].([]any)
+	if len(albums) != 3 || detail["monitored"] != true || detail["hydrating"] != nil {
+		t.Fatalf("artist after hydration = %s", r.Body)
+	}
 	var trackCount int
+	monitored := map[string]bool{}
 	for _, al := range albums {
-		trackCount += len(al.(map[string]any)["tracks"].([]any))
+		am := al.(map[string]any)
+		trackCount += len(am["tracks"].([]any))
+		monitored[am["name"].(string)] = am["monitored"].(bool)
 	}
 	if trackCount != 6 {
 		t.Errorf("tracks = %d, want 6 (Nocturnes 3, Etudes 2, Ballades 1)", trackCount)
+	}
+	// Only the studio albums are monitored; the EP is not.
+	if want := map[string]bool{"Nocturnes": true, "Études, Op. 10": true, "Ballades (sampler)": false}; !reflect.DeepEqual(monitored, want) {
+		t.Errorf("monitored albums = %v, want %v", monitored, want)
+	}
+	// Adding it again: the same artist, complete, 200, still {title, hydrating}.
+	r = owner.do("POST", "/api/v1/titles", map[string]any{"kind": "artist", "provider": "musicbrainz", "providerId": chopinMBID})
+	if again := r.JSON(t); r.Status != http.StatusOK || again["hydrating"] != false || again["title"].(map[string]any)["id"] != artistID {
+		t.Errorf("second add = %d %s", r.Status, r.Body)
 	}
 
 	// A movie needs the key.
@@ -982,6 +1020,38 @@ func TestSearchRunsProvidersInParallel(t *testing.T) {
 	for _, k := range []string{"movie", "show", "artist"} {
 		if len(results(t, group(t, r, k))) == 0 {
 			t.Errorf("%s group is empty", k)
+		}
+	}
+}
+
+// waitTitlesEvent subscribes to the "titles" events now and returns a function
+// that waits for one of the given kind and returns its title id.
+func (a *catalogApp) waitTitlesEvent(t *testing.T, event string) func() float64 {
+	t.Helper()
+	c, unsub := a.hub.Subscribe("titles")
+	t.Cleanup(unsub)
+	return func() float64 {
+		t.Helper()
+		timeout := time.After(10 * time.Second)
+		for {
+			select {
+			case m, ok := <-c.C():
+				if !ok {
+					t.Fatal("the event stream closed")
+				}
+				var ev struct {
+					ID    float64 `json:"id"`
+					Event string  `json:"event"`
+				}
+				if err := json.Unmarshal(m.Data, &ev); err != nil {
+					t.Fatal(err)
+				}
+				if ev.Event == event {
+					return ev.ID
+				}
+			case <-timeout:
+				t.Fatalf("no %q titles event", event)
+			}
 		}
 	}
 }

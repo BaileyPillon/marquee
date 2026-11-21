@@ -1,15 +1,14 @@
 <script lang="ts">
-  import PreviewTag from './PreviewTag.svelte';
   import { t } from '../core/i18n';
   import type { ComingEvent } from '../core/types';
 
   interface Props {
     events: ComingEvent[];
-    /** The row still shows sample content: it gets a small "Preview" tag. */
-    preview?: boolean;
+    /** Said in place of the list when there is nothing to show ("Nothing in the next 7 days"). */
+    note?: string;
   }
 
-  let { events, preview = false }: Props = $props();
+  let { events, note }: Props = $props();
 
   const uid = $props.id();
   const headingId = `coming-${uid}`;
@@ -19,10 +18,12 @@
   <div class="head">
     <h2 id={headingId}>
       {t('coming.title')}
-      {#if preview}<span class="tag"><PreviewTag /></span>{/if}
     </h2>
     <a class="all" href="/calendar">{t('action.openCalendar')}</a>
   </div>
+  {#if events.length === 0 && note}
+    <p class="note">{note}</p>
+  {/if}
   <ul class="scroller">
     {#each events as ev (ev.day + ev.date + ev.title)}
       <li>
@@ -58,10 +59,10 @@
     line-height: 24px;
     color: var(--text);
   }
-  .tag {
-    display: inline-block;
-    margin-left: 8px;
-    vertical-align: 2px;
+  .note {
+    font-size: 14px;
+    line-height: 20px;
+    color: var(--text-3);
   }
   .all {
     font-size: 13px;

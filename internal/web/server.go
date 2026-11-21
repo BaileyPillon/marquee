@@ -13,16 +13,22 @@ import (
 	"time"
 
 	"github.com/BaileyPillon/marquee/internal/accounts"
+	"github.com/BaileyPillon/marquee/internal/alerts"
+	"github.com/BaileyPillon/marquee/internal/calendar"
 	"github.com/BaileyPillon/marquee/internal/core/events"
 	"github.com/BaileyPillon/marquee/internal/decide"
 	"github.com/BaileyPillon/marquee/internal/downloads"
+	"github.com/BaileyPillon/marquee/internal/history"
+	"github.com/BaileyPillon/marquee/internal/importer"
 	"github.com/BaileyPillon/marquee/internal/library"
+	"github.com/BaileyPillon/marquee/internal/mediaservers"
 	"github.com/BaileyPillon/marquee/internal/metadata"
 	"github.com/BaileyPillon/marquee/internal/requests"
 	"github.com/BaileyPillon/marquee/internal/search"
 	"github.com/BaileyPillon/marquee/internal/settings"
 	"github.com/BaileyPillon/marquee/internal/sources"
 	"github.com/BaileyPillon/marquee/internal/titles"
+	"github.com/BaileyPillon/marquee/internal/watchlists"
 )
 
 // Deps is everything the server needs.
@@ -47,6 +53,19 @@ type Deps struct {
 	Sources *sources.Service
 	Decide  *decide.Service
 	Search  *search.Service
+	// Importer, MediaServers and History are the import side (api_import.go,
+	// api_mediaservers.go); each one that is nil leaves its routes out.
+	Importer     *importer.Service
+	MediaServers *mediaservers.Service
+	History      *history.Service
+	// Watchlists, Calendar and Alerts (api_watchlists.go, api_calendar.go,
+	// api_alerts.go); each one that is nil leaves its routes out.
+	Watchlists *watchlists.Service
+	Calendar   *calendar.Service
+	Alerts     *alerts.Service
+	// MCP is the Model Context Protocol server (api_mcp.go); nil leaves its
+	// routes out.
+	MCP MCPService
 	// UI is the built single-page app, rooted so that index.html is at its top.
 	UI fs.FS
 }
@@ -112,12 +131,25 @@ func (s *Server) Handler() http.Handler {
 	// Sources, quality profiles, the blocklist and release search (api_sources.go).
 	s.registerSources(api)
 
+	// Import: a title's history, open-on-server, manual import and its status
+	// (api_import.go), and the media servers (api_mediaservers.go).
+	s.registerImport(api)
+	s.registerMediaServers(api)
+
+	// Plex watchlists, the calendar and alert channels.
+	s.registerWatchlists(api)
+	s.registerCalendar(api)
+	s.registerAlerts(api)
+
 	// Anything else under /api/ is a JSON 404, never the UI.
 	api.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "not_found", "No such endpoint.")
 	})
 
 	root := http.NewServeMux()
+	// The MCP endpoint (api_mcp.go) sits outside the API guard: it takes Bearer
+	// keys only and answers in JSON-RPC.
+	s.registerMCP(root, api)
 	root.Handle("/api/", s.apiGuard(api))
 	root.Handle("/", newStatic(s.UI))
 

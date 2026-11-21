@@ -6,13 +6,13 @@
   import BackLink from '../lib/ui/BackLink.svelte';
   import Button from '../lib/ui/Button.svelte';
   import Hero from '../lib/ui/Hero.svelte';
+  import HistoryPanel from '../lib/ui/HistoryPanel.svelte';
   import Icon from '../lib/ui/Icon.svelte';
   import type { IconName } from '../lib/ui/icons';
   import LabelValue from '../lib/ui/LabelValue.svelte';
   import LoadFailed from '../lib/ui/LoadFailed.svelte';
   import PageSkeleton from '../lib/ui/PageSkeleton.svelte';
   import Panel from '../lib/ui/Panel.svelte';
-  import PreviewTag from '../lib/ui/PreviewTag.svelte';
   import SectionHead from '../lib/ui/SectionHead.svelte';
   import Tabs, { type TabItem } from '../lib/ui/Tabs.svelte';
   import TitleNotFound from '../lib/ui/TitleNotFound.svelte';
@@ -20,13 +20,27 @@
   import { horizonArt } from '../lib/ui/art';
   import { ApiError } from '../lib/core/api';
   import { getTitle, titlePath, type Episode } from '../lib/core/catalog';
-  import { formatAirDate, formatBytes, formatDay, isFuture, seasonCount, sentence } from '../lib/core/format';
+  import {
+    formatAirDate,
+    formatBytes,
+    formatDay,
+    isFuture,
+    seasonCount,
+    sentence,
+  } from '../lib/core/format';
   import { t } from '../lib/core/i18n';
   import { libraryIndex } from '../lib/core/libraryIndex.svelte.ts';
   import { resource } from '../lib/core/resource.svelte.ts';
   import { navigate, type Match } from '../lib/core/router';
+  import { getOpenTarget } from '../lib/core/serversApi';
+  import { session } from '../lib/core/session.svelte';
+  import { listProfiles, type Profile } from '../lib/core/sourcesApi';
   import { heroTheme } from '../lib/core/themes';
+  import { episodeFile } from '../lib/core/titleFiles';
+  import { watchTitleDownloads } from '../lib/core/titleDownloads.svelte';
   import type { EpisodeState } from '../lib/core/views';
+  import EpisodeSearchSheet from './title/EpisodeSearchSheet.svelte';
+  import MissingSheet from './title/MissingSheet.svelte';
 
   interface Props {
     match: Match;
@@ -44,8 +58,38 @@
     if (d && d.kind !== 'show') navigate(titlePath(d.kind, d.id), { replace: true });
   });
 
-  const known = $derived(libraryIndex.status === 'ready');
+  const role = $derived(session.me?.role);
+  const canManage = $derived(role === 'owner' || role === 'admin');
+
   const artwork = $derived(d ? horizonArt(d.year) : undefined);
+
+  // Where "Open" leads: the show on the media server, when one has it.
+  const openTarget = resource(
+    () => (d ? String(d.id) : ''),
+    async (key, signal) => {
+      if (!key) return null;
+      try {
+        return await getOpenTarget(Number(key), signal);
+      } catch (err) {
+        if (signal.aborted) throw err;
+        return null;
+      }
+    },
+  );
+  const open = $derived(openTarget.data);
+
+  // Episodes on their way in right now, moving as the downloads stream says so.
+  const live = watchTitleDownloads(
+    () => d?.id,
+    () => canManage,
+  );
+  const comingIn = $derived.by(() => {
+    const map = new Map<number, number>();
+    for (const item of live.items) {
+      for (const id of item.episodeIds ?? []) map.set(id, Math.round(item.progress * 100));
+    }
+    return map;
+  });
 
   // ---- seasons and episodes ----
   const seasons = $derived(
@@ -54,7 +98,10 @@
   const episodesOf = (season: number): Episode[] =>
     d ? d.episodes.filter((e) => e.season === season).sort((a, b) => a.number - b.number) : [];
 
-  const hasFile = (e: Episode): boolean => libraryIndex.episodes.has(e.id);
+  // Is the library's answer known (the server says it on every episode; an older one only to the owner)?
+  const first = $derived(d?.episodes[0]);
+  const known = $derived(first ? episodeFile(first) !== undefined : libraryIndex.status === 'ready');
+  const hasFile = (e: Episode): boolean => episodeFile(e)?.has === true;
 
   // The season to open on: the latest one with a file in the library, else the first real season.
   let picked = $state<number | undefined>();
@@ -83,12 +130,16 @@
   }
 
   function rowOf(ep: Episode): Row {
-    const file = libraryIndex.episodes.get(ep.id);
-    if (file) {
+    const file = episodeFile(ep);
+    if (file?.has) {
       const text = [t('show.state.library'), file.quality, file.size > 0 ? formatBytes(file.size) : '']
         .filter(Boolean)
         .join(' · ');
       return { ep, state: 'library', text };
+    }
+    const pct = comingIn.get(ep.id);
+    if (pct !== undefined) {
+      return { ep, state: 'downloading', text: t('show.state.downloading', { pct }) };
     }
     const air = formatAirDate(ep.airDate);
     if (!ep.airDate || isFuture(ep.airDate)) {
@@ -110,6 +161,7 @@
 
   const rows = $derived(episodes.map(rowOf));
   const have = $derived(known ? episodes.filter(hasFile).length : 0);
+  const missingNow = $derived(rows.filter((r) => r.state === 'missing').map((r) => r.ep));
 
   const stateIcon: Record<EpisodeState, IconName> = {
     library: 'check',
@@ -118,6 +170,16 @@
     upcoming: 'time',
     unknown: 'alert',
   };
+
+  // ---- searching ----
+  let searchOpen = $state(false);
+  let searchEp = $state<Episode | undefined>();
+  let missingOpen = $state(false);
+
+  function searchOne(ep: Episode): void {
+    searchEp = ep;
+    searchOpen = true;
+  }
 
   // ---- the header ----
   const regular = $derived(d ? d.episodes.filter((e) => e.season > 0) : []);
@@ -145,6 +207,40 @@
           .join(' · ')
       : '',
   );
+
+  // ---- the rules: the owner's HD profile for shows ----
+  let profile = $state.raw<Profile | undefined>();
+  $effect(() => {
+    if (role !== 'owner') {
+      profile = undefined;
+      return;
+    }
+    let live = true;
+    listProfiles().then(
+      (list) => {
+        if (live) profile = list.find((p) => p.kind === 'show' && p.quality === 'hd');
+      },
+      () => {
+        if (live) profile = undefined;
+      },
+    );
+    return () => {
+      live = false;
+    };
+  });
+  const rules = $derived([
+    ...(profile
+      ? [
+          {
+            label: t('show.rules.quality'),
+            value: [profile.name, [...(profile.allowedRes ?? [])].sort((a, b) => a - b).map((r) => `${r}p`).join(', ')]
+              .filter(Boolean)
+              .join(' · '),
+          },
+        ]
+      : []),
+    { label: t('show.rules.folder'), value: d?.rootFolder || t('show.rules.folderDefault') },
+  ]);
 
   let askOpen = $state(false);
 
@@ -214,13 +310,18 @@
               {episodes.length === 1 ? t('show.episodeCountOne') : t('show.episodeCount', { n: episodes.length })}
             {/if}
           </span>
-          <span class="head-actions">
-            <PreviewTag />
-            <Button size="compact" disabled>
-              <Icon name="search" size={15} stroke={2.2} />
-              {t('show.searchMissing')}
-            </Button>
-          </span>
+          {#if canManage}
+            <span class="head-actions">
+              <Button
+                size="compact"
+                disabled={missingNow.length === 0}
+                onclick={() => (missingOpen = true)}
+              >
+                <Icon name="search" size={15} stroke={2.2} />
+                {t('show.searchMissing')}
+              </Button>
+            </span>
+          {/if}
         </SectionHead>
         {#if rows.length === 0}
           <p class="empty">{t('show.noEpisodes')}</p>
@@ -244,12 +345,23 @@
                 </div>
                 <div class="ep-action">
                   {#if row.state === 'library'}
-                    <Button size="compact" disabled aria-label={t('show.openAria', { n: row.ep.number, server: t('show.server') })}>
-                      <Icon name="playOutline" size={15} stroke={2.2} />
-                      {t('action.open')}
-                    </Button>
-                  {:else}
-                    <Button size="compact" disabled aria-label={t('show.searchAria', { n: row.ep.number })}>
+                    {#if open}
+                      <Button
+                        size="compact"
+                        external
+                        href={open.url}
+                        aria-label={t('show.openAria', { n: row.ep.number, server: open.server.name })}
+                      >
+                        <Icon name="playOutline" size={15} stroke={2.2} />
+                        {t('action.open')}
+                      </Button>
+                    {/if}
+                  {:else if row.state !== 'downloading' && canManage}
+                    <Button
+                      size="compact"
+                      aria-label={t('show.searchAria', { n: row.ep.number })}
+                      onclick={() => searchOne(row.ep)}
+                    >
                       <Icon name="search" size={15} stroke={2.2} />
                       {t('action.search')}
                     </Button>
@@ -265,22 +377,19 @@
     <div class="side">
       <Panel labelledby={rulesId} padding="18px 20px 16px">
         <SectionHead title={t('show.rules.heading')} id={rulesId} align="center" gap={0}>
-          <PreviewTag />
-          <Button variant="quiet" size="xs" disabled>{t('show.rules.change')}</Button>
+          {#if role === 'owner'}
+            <Button variant="quiet" size="xs" href="/settings?tab=quality">{t('show.rules.change')}</Button>
+          {/if}
         </SectionHead>
-        <LabelValue
-          items={[
-            { label: t('show.rules.quality'), value: 'HD 1080p, fall back to 720p' },
-            { label: t('show.rules.folder'), value: d.rootFolder || t('show.rules.folderDefault') },
-            { label: t('show.rules.subtitles'), value: 'English' },
-          ]}
-          density="roomy"
-          gap={12}
-        />
+        <LabelValue items={rules} density="roomy" gap={12} />
         <p class="rules-note">{t('show.rules.note')}</p>
       </Panel>
     </div>
   </div>
+
+  {#if canManage}
+    <div class="history"><HistoryPanel titleId={d.id} /></div>
+  {/if}
 
   <AlsoInLibrary kind="show" exceptId={d.id} heading={t('show.moreInLibrary')} />
 
@@ -291,6 +400,25 @@
     kind="show"
     defaultQuality="uhd"
   />
+
+  {#if canManage}
+    {#if searchEp}
+      <EpisodeSearchSheet
+        bind:open={searchOpen}
+        titleId={d.id}
+        name={d.name}
+        season={searchEp.season}
+        episode={searchEp.number}
+      />
+    {/if}
+    <MissingSheet
+      bind:open={missingOpen}
+      titleId={d.id}
+      name={d.name}
+      season={season ?? 1}
+      episodes={missingNow}
+    />
+  {/if}
 {:else if notFound}
   <TitleNotFound backHref="/tv" backLabel={t('nav.tv')} />
 {:else if page.failed}
@@ -317,6 +445,9 @@
   }
   .seasons {
     margin-bottom: 14px;
+  }
+  .history {
+    margin-bottom: 18px;
   }
 
   .note {
@@ -411,6 +542,10 @@
     border-radius: var(--radius-pill);
     border: 1px dashed var(--line-soft);
     color: var(--text-2);
+  }
+  .state.downloading {
+    color: var(--accent);
+    font-weight: 600;
   }
   .state.unknown {
     color: var(--text-3);

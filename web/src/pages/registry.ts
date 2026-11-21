@@ -5,6 +5,7 @@
 import type { Component } from 'svelte';
 import type { RouteName } from '../lib/core/router';
 import Artist from './Artist.svelte';
+import Calendar from './Calendar.svelte';
 import Downloads from './Downloads.svelte';
 import Explore from './Explore.svelte';
 import Home from './Home.svelte';
@@ -32,6 +33,7 @@ export const pages: Partial<Record<RouteName, PageComponent>> = {
   artist: Artist,
   requests: Requests,
   downloads: Downloads,
+  calendar: Calendar,
   settings: Settings,
   invite: Invite,
   setup: Setup,

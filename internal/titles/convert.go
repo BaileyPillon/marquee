@@ -76,6 +76,7 @@ func fromMovie(m *metadata.MovieInfo, opts AddOptions) (*Detail, error) {
 	d.Name, d.SortName = m.Title, sortName(m.Title)
 	d.AltNames = altNames(m.Title, m.OriginalTitle)
 	d.Year, d.Overview, d.Tagline = m.Year, m.Overview, m.Tagline
+	d.ReleaseDate = m.ReleaseDate
 	d.Certification, d.TrailerKey = m.Certification, m.TrailerKey
 	d.RuntimeMin, d.Genres, d.Status = m.RuntimeMin, strs(m.Genres), m.Status
 	d.PosterRef, d.BackdropRef = m.Poster.Ref, m.Backdrop.Ref
@@ -124,6 +125,12 @@ func fromShow(s *metadata.ShowInfo, opts AddOptions) (*Detail, error) {
 	return d, nil
 }
 
+// isStudio reports whether a release group is a studio album: primary type
+// Album and no secondary types at all.
+func isStudio(primary string, secondary []string) bool {
+	return strings.EqualFold(strings.TrimSpace(primary), "album") && len(secondary) == 0
+}
+
 func fromArtist(a *metadata.ArtistInfo, opts AddOptions) (*Detail, error) {
 	if a == nil || strings.TrimSpace(a.Name) == "" || a.MBID == "" {
 		return nil, badAnswer()
@@ -138,6 +145,7 @@ func fromArtist(a *metadata.ArtistInfo, opts AddOptions) (*Detail, error) {
 	}
 	d.AltNames = altNames(a.Name, a.AltNames...)
 	d.Year, d.Overview, d.Genres = a.Year, a.Disambiguation, strs(a.Genres)
+	d.LifeSpan = &LifeSpan{Begin: a.Begin, End: a.End}
 	d.Status = "active"
 	if a.Ended {
 		d.Status = "ended"
@@ -150,11 +158,16 @@ func fromArtist(a *metadata.ArtistInfo, opts AddOptions) (*Detail, error) {
 		}
 		album := Album{
 			MBID: al.MBID, Name: al.Title, Year: al.Year, Type: al.Type,
-			Monitored: opts.Monitored, CoverRef: al.Cover.Ref, Tracks: []Track{},
+			CoverRef: al.Cover.Ref, Tracks: []Track{},
 		}
 		if album.Type == "" {
 			album.Type = "album"
 		}
+		// Only studio albums are wanted by default; the rest (EPs, soundtracks,
+		// and any compilation, live album or single a provider lists) start
+		// unmonitored and can be switched on one by one.
+		album.Studio = isStudio(album.Type, al.SecondaryTypes)
+		album.Monitored = opts.Monitored && album.Studio
 		for _, t := range al.Tracks {
 			album.Tracks = append(album.Tracks, Track{
 				Disc: t.Disc, Position: t.Position, Name: t.Title, LengthMS: t.LengthMS, MBID: t.MBID,

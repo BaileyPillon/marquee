@@ -64,6 +64,7 @@ type Service struct {
 	now   func() time.Time
 
 	searcher atomic.Pointer[searcherBox]
+	rec      atomic.Pointer[recorderBox] // the history, see SetRecorder
 
 	mu      sync.Mutex
 	closed  bool
@@ -335,6 +336,10 @@ func (s *Service) Ask(ctx context.Context, actor Actor, in AskInput) (*AskResult
 	if err != nil {
 		return nil, err
 	}
+	s.record(ctx, requestedEntry(item, copyID, auto))
+	if auto {
+		s.record(ctx, approvedEntry(item, copyID, true))
+	}
 	use, err := s.usage(ctx, actor.UserID, eff)
 	if err != nil {
 		return nil, err
@@ -461,7 +466,11 @@ func (s *Service) Approve(ctx context.Context, actor Actor, id int64, opts Appro
 	if err := s.afterApprove(ctx, id, it.Title.ID, it.Title.Kind, it.Scope, copyID); err != nil {
 		return Item{}, err
 	}
-	return s.item(ctx, id)
+	out, err := s.item(ctx, id)
+	if err == nil {
+		s.record(ctx, approvedEntry(out, copyID, false))
+	}
+	return out, err
 }
 
 // afterApprove is what follows an approval, once it is stored: monitor the
@@ -523,7 +532,11 @@ func (s *Service) Decline(ctx context.Context, actor Actor, id int64, reason str
 	}
 	s.log.Info("request declined", "id", id, "by", actor.UserID)
 	s.publish("declined", id, StateDeclined)
-	return s.item(ctx, id)
+	out, err := s.item(ctx, id)
+	if err == nil {
+		s.record(ctx, declinedEntry(out))
+	}
+	return out, err
 }
 
 // Cancel withdraws a request. The person who asked may cancel their own while

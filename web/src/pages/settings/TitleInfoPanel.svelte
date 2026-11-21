@@ -14,6 +14,7 @@
   } from '../../lib/core/catalog';
   import { t } from '../../lib/core/i18n';
   import { providerRows } from '../../lib/core/providerRows';
+  import type { PanelRow } from '../../lib/core/views';
   import ConnectionPanel from './ConnectionPanel.svelte';
 
   interface Props {
@@ -102,10 +103,25 @@
   }
 
   // "Edit" on the TMDB row takes the owner to the key field; for anyone else the row has no button.
-  const rows = $derived(
-    (status ? providerRows(status) : []).map((row) =>
-      isOwner ? row : { ...row, action: undefined },
-    ),
+  const rows = $derived<PanelRow[]>(
+    (status ? providerRows(status) : []).map((row) => ({
+      key: row.name,
+      name: row.name,
+      ...(row.tag ? { tag: row.tag } : {}),
+      status: row.status,
+      state: row.state,
+      buttons:
+        isOwner && row.action === 'edit'
+          ? [
+              {
+                id: 'edit',
+                label: t('settings.action.edit'),
+                aria: t('settings.rowAria', { action: t('settings.action.edit'), name: row.name }),
+                onclick: editRow,
+              },
+            ]
+          : [],
+    })),
   );
 
   function editRow(): void {
@@ -173,7 +189,6 @@
       title={t('settings.panel.info')}
       {rows}
       note={t('settings.note.info')}
-      onrow={isOwner ? editRow : undefined}
     />
   {:else if statusFailed}
     <LoadFailed onretry={() => (attempt += 1)} />

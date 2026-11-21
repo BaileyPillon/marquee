@@ -210,7 +210,9 @@ type ArtistInfo struct {
 	Type           string      `json:"type"` // Person, Group, ...
 	Country        string      `json:"country"`
 	Disambiguation string      `json:"disambiguation"`
-	Year           int         `json:"year"` // when the artist began
+	Year           int         `json:"year"`  // when the artist began
+	Begin          string      `json:"begin"` // life-span begin as MusicBrainz writes it (1810-03-01, 1998, or empty)
+	End            string      `json:"end"`   // life-span end; empty while it goes on
 	Ended          bool        `json:"ended"`
 	Genres         []string    `json:"genres"`
 	AltNames       []string    `json:"altNames"`
@@ -220,14 +222,17 @@ type ArtistInfo struct {
 // AlbumInfo is a release group (an album or an EP) with the track list of its
 // earliest official release.
 type AlbumInfo struct {
-	MBID        string      `json:"mbid"` // the release group
-	ReleaseID   string      `json:"releaseId"`
-	Title       string      `json:"title"`
-	Year        int         `json:"year"`
-	ReleaseDate string      `json:"releaseDate"`
-	Type        string      `json:"type"` // album or ep
-	Cover       Image       `json:"cover"`
-	Tracks      []TrackInfo `json:"tracks"`
+	MBID        string `json:"mbid"` // the release group
+	ReleaseID   string `json:"releaseId"`
+	Title       string `json:"title"`
+	Year        int    `json:"year"`
+	ReleaseDate string `json:"releaseDate"`
+	Type        string `json:"type"` // album or ep
+	// SecondaryTypes are MusicBrainz's secondary types ("Soundtrack", "Live",
+	// ...) as it writes them. An album with none is a studio album.
+	SecondaryTypes []string    `json:"secondaryTypes"`
+	Cover          Image       `json:"cover"`
+	Tracks         []TrackInfo `json:"tracks"`
 }
 
 // TrackInfo is one track on an album.
@@ -265,6 +270,13 @@ type ShowProvider interface {
 type ArtistProvider interface {
 	SearchArtists(ctx context.Context, query string) ([]SearchHit, error)
 	Artist(ctx context.Context, id string) (*ArtistInfo, error)
+}
+
+// ArtistBaseProvider is an ArtistProvider that can also answer quickly with the
+// artist alone (one request, no albums or tracks). The catalog uses it to store
+// a new artist at once and read the albums in the background.
+type ArtistBaseProvider interface {
+	ArtistBase(ctx context.Context, id string) (*ArtistInfo, error)
 }
 
 // ---- small helpers shared by the providers ---------------------------------

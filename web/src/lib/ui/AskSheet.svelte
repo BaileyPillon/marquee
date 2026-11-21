@@ -4,6 +4,7 @@
   import Toast from './Toast.svelte';
   import type { ApiKind, AskQuality, AskTarget } from '../core/catalog';
   import { t } from '../core/i18n';
+  import { requestsState } from '../core/requests.svelte.ts';
   import { createToaster } from '../core/toast.svelte.ts';
 
   interface Props {
@@ -34,7 +35,14 @@
 
   function sent(autoApproved: boolean): void {
     open = false;
-    toaster.show(autoApproved ? t('ask.sentApproved', { title }) : t('ask.sentWaiting'));
+    const owner = requestsState.ownerName;
+    toaster.show(
+      autoApproved
+        ? t('ask.sentApproved')
+        : owner
+          ? t('ask.sentWaitingNamed', { owner })
+          : t('ask.sentWaiting'),
+    );
   }
 </script>
 

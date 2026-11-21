@@ -15,6 +15,7 @@ import (
 
 	"github.com/BaileyPillon/marquee/internal/core/events"
 	"github.com/BaileyPillon/marquee/internal/core/outbound"
+	"github.com/BaileyPillon/marquee/internal/core/pathmap"
 	"github.com/BaileyPillon/marquee/internal/core/secrets"
 	"github.com/BaileyPillon/marquee/internal/grab"
 	"github.com/BaileyPillon/marquee/internal/settings"
@@ -130,14 +131,23 @@ type ClientView struct {
 	LastError   string     `json:"lastError"`
 	LastErrorAt *time.Time `json:"lastErrorAt"`
 	CreatedAt   time.Time  `json:"createdAt"`
+	// PathMap says how the client's folders look from Marquee's side, for a
+	// client in a container or on another machine: [{"from": "/downloads",
+	// "to": "D:\\dl"}]. The importer uses it to find a finished download.
+	PathMap []pathmap.Rule `json:"pathMap"`
 }
 
 func (s *Service) view(c clientRow) ClientView {
+	pm := c.PathMap
+	if pm == nil {
+		pm = []pathmap.Rule{}
+	}
 	return ClientView{
 		ID: c.ID, Name: c.Name, Kind: c.Kind, URL: c.URL, Username: c.Username,
 		Password: s.mask(c.PasswordSealed), APIKey: s.mask(c.APIKeySealed),
 		Category: c.Category, SavePath: c.SavePath, Enabled: c.Enabled, Priority: c.Priority,
 		LastOKAt: c.LastOKAt, LastError: c.LastError, LastErrorAt: c.LastErrorAt, CreatedAt: c.CreatedAt,
+		PathMap: pm,
 	}
 }
 
@@ -168,6 +178,9 @@ type ClientInput struct {
 	SavePath *string `json:"savePath"`
 	Enabled  *bool   `json:"enabled"`
 	Priority *int    `json:"priority"`
+	// PathMap replaces the client's path rules when sent (an empty list clears
+	// them); left out, the rules stay.
+	PathMap *[]pathmap.Rule `json:"pathMap"`
 }
 
 const (
@@ -302,6 +315,13 @@ func (s *Service) applyInput(c *clientRow, in ClientInput, old *clientRow) error
 			return &InvalidError{Message: "The priority must be a number from 0 to 999 (lowest is used first)."}
 		}
 		c.Priority = *in.Priority
+	}
+	if in.PathMap != nil {
+		rules, err := pathmap.Clean(*in.PathMap)
+		if err != nil {
+			return &InvalidError{Message: "The path rules are not valid: " + err.Error() + "."}
+		}
+		c.PathMap = rules
 	}
 
 	var err error

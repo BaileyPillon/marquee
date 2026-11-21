@@ -321,6 +321,10 @@ func (s *Store) ListFiles(ctx context.Context, f FileFilter) ([]File, int, error
 		where = append(where, `folder_id = ?`)
 		args = append(args, f.FolderID)
 	}
+	if f.TitleID != 0 {
+		where = append(where, `title_id = ?`)
+		args = append(args, f.TitleID)
+	}
 	switch f.State {
 	case "":
 	case "missing":

@@ -5,54 +5,62 @@
   import LabelValue from '../../lib/ui/LabelValue.svelte';
   import Panel from '../../lib/ui/Panel.svelte';
   import Thumb from '../../lib/ui/Thumb.svelte';
+  import { formatSince } from '../../lib/core/format';
   import { posterColor } from '../../lib/core/posters';
   import { t } from '../../lib/core/i18n';
-  import type { WaitingRequest } from '../../lib/core/views';
+  import type { RequestItem } from '../../lib/core/requestsApi';
+  import { askerFirst, askFacts, briefLine, posterMeta } from '../../lib/core/requestView';
 
   interface Props {
     /** The ask on the big card. */
-    active: WaitingRequest;
+    active: RequestItem;
     /** The other asks waiting, in a short list under it. */
-    others: WaitingRequest[];
+    others: RequestItem[];
     busy: boolean;
     onapprove: () => void;
     ondecline: () => void;
+    /** Approve and always allow 4K for this person (4K asks only). */
+    onalways?: () => void;
     /** Put another ask on the big card. */
-    onpick: (id: string) => void;
+    onpick: (id: number) => void;
   }
 
-  let { active, others, busy, onapprove, ondecline, onpick }: Props = $props();
+  let { active, others, busy, onapprove, ondecline, onalways, onpick }: Props = $props();
 
   const uid = $props.id();
   const alsoId = `phone-also-${uid}`;
 
+  const name = $derived(active.title.name);
+  const who = $derived(askerFirst(active));
+  const is4k = $derived(active.quality === 'uhd');
   // The title is set big; a long one steps down so it still sits on the card.
-  const titleSize = $derived(active.title.length <= 12 ? 58 : active.title.length <= 20 ? 42 : 34);
+  const titleSize = $derived(name.length <= 12 ? 58 : name.length <= 20 ? 42 : 34);
   const heading = $derived(
-    active.quality === '4K'
-      ? t('requests.phone.asked4k', { who: active.requester, title: active.title })
-      : t('requests.phone.asked', { who: active.requester, title: active.title }),
+    is4k
+      ? t('requests.phone.asked4k', { who, title: name })
+      : t('requests.phone.asked', { who, title: name }),
   );
+  const facts = $derived(askFacts(active).phoneFacts);
 </script>
 
 <Panel label={t('requests.phone.cardLabel')} padding="16px" radius="xl">
-  <div class="big" style:background={posterColor(active.title)}>
+  <div class="big" style:background={posterColor(name)}>
     <div class="frame" aria-hidden="true"></div>
     <div class="row">
       <Chip tone="dashed" size="status" scrim>{t('status.requested')}</Chip>
-      <span class="quality">{active.quality}</span>
+      <span class="quality">{is4k ? t('ask.quality.uhd.short') : t('ask.quality.hd.short')}</span>
     </div>
     <div class="base">
       <div class="rule"></div>
-      <div class="title" style:font-size="{titleSize}px">{active.title}</div>
-      <div class="meta">{active.posterMeta}</div>
+      <div class="title" style:font-size="{titleSize}px">{name}</div>
+      <div class="meta">{posterMeta(active)}</div>
     </div>
   </div>
 
   <h2>{heading}</h2>
-  <p class="ago">{t('requests.phone.ago', { ago: active.ago })}</p>
+  <p class="ago">{t('requests.phone.ago', { ago: formatSince(active.createdAt) })}</p>
 
-  <LabelValue items={active.phoneFacts} density="cozy" gap={12} />
+  <LabelValue items={facts} density="cozy" gap={12} />
 
   <div class="decide">
     <Button variant="primary" size="xl" disabled={busy} onclick={onapprove}>
@@ -64,6 +72,13 @@
       {t('action.decline')}
     </Button>
   </div>
+  {#if is4k && onalways}
+    <div class="always">
+      <Button variant="link" size="lg" disabled={busy} onclick={onalways}>
+        {t('requests.alwaysAllow', { who, quality: t('ask.quality.uhd.short') })}
+      </Button>
+    </div>
+  {/if}
 </Panel>
 
 {#if others.length > 0}
@@ -73,10 +88,16 @@
       {#each others as other (other.id)}
         <li>
           <button type="button" onclick={() => onpick(other.id)}>
-            <Thumb title={other.title} width={40} height={52} fontSize={26} />
+            <Thumb
+              title={other.title.name}
+              width={40}
+              height={52}
+              fontSize={26}
+              imageRef={other.title.posterRef || undefined}
+            />
             <span class="text">
-              <span class="name">{other.title}</span>
-              <span class="detail">{other.brief}</span>
+              <span class="name">{other.title.name}</span>
+              <span class="detail">{briefLine(other)}</span>
             </span>
             <span class="chev"><Icon name="chevron" size={20} stroke={2} /></span>
           </button>
@@ -119,6 +140,7 @@
     padding: 2px 9px;
     border: 1px solid var(--line-soft);
     border-radius: 4px;
+    background: var(--scrim);
     font-size: 13px;
     font-weight: 700;
     line-height: 18px;
@@ -140,6 +162,7 @@
     line-height: 1;
     letter-spacing: 0.005em;
     color: var(--text);
+    overflow-wrap: anywhere;
   }
   .meta {
     margin-top: 8px;
@@ -170,6 +193,18 @@
   }
   .decide :global(.btn) {
     flex: 1 1 0;
+  }
+  .always {
+    display: flex;
+    justify-content: center;
+    margin-top: 6px;
+  }
+  .always :global(.btn) {
+    height: auto;
+    min-height: 40px;
+    padding: 6px 4px;
+    white-space: normal;
+    text-align: center;
   }
 
   .also {

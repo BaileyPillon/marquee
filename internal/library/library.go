@@ -163,9 +163,11 @@ type Stats struct {
 // still on disk in that state) or "missing"; empty means every row.
 type FileFilter struct {
 	FolderID int64
-	State    string
-	Limit    int
-	Offset   int
+	// TitleID, when not 0, keeps only the files matched to that title.
+	TitleID int64
+	State   string
+	Limit   int
+	Offset  int
 }
 
 // Options configures a Service.

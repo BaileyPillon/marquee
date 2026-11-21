@@ -419,3 +419,60 @@ func TestKeepReleaseGroup(t *testing.T) {
 		}
 	}
 }
+
+func TestMusicBrainzArtistBaseIsOneRequestWithTheLifeSpan(t *testing.T) {
+	e, api := mbEnv(t)
+	var _ ArtistBaseProvider = e.svc.MusicBrainz
+	a, err := e.svc.MusicBrainz.ArtistBase(bg(), strings.ToUpper(chopinMBID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if api.Total() != 1 {
+		t.Errorf("%d requests for the artist alone, want 1", api.Total())
+	}
+	if a.MBID != chopinMBID || a.Name != "Frédéric Chopin" || a.Begin != "1810-03-01" || a.End != "1849-10-17" || !a.Ended || a.Year != 1810 {
+		t.Errorf("artist = %+v", a)
+	}
+	if len(a.Albums) != 0 {
+		t.Errorf("the artist alone has albums: %v", a.Albums)
+	}
+
+	// The full call reuses the cached artist answer: only the album requests are new.
+	before := api.Total()
+	if _, err := e.svc.MusicBrainz.Artist(bg(), chopinMBID); err != nil {
+		t.Fatal(err)
+	}
+	if got := api.Count("/ws/2/artist/" + chopinMBID); got != 1 {
+		t.Errorf("the artist was fetched %d times, want 1", got)
+	}
+	if api.Total()-before != 7 {
+		t.Errorf("full call after the base made %d requests, want 7", api.Total()-before)
+	}
+
+	if _, err := e.svc.MusicBrainz.ArtistBase(bg(), "chopin"); !errors.Is(err, ErrNotFound) {
+		t.Errorf("a bad id = %v, want not found", err)
+	}
+}
+
+func TestMusicBrainzAlbumsCarrySecondaryTypes(t *testing.T) {
+	api := newFakeAPI(t, nil)
+	api.Set("/ws/2/artist/"+chopinMBID, fixture(t, "mb_artist_chopin.json"))
+	api.Set("/ws/2/release-group", func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"release-group-count": 2, "release-groups": [
+			{"id": "b0000000-0000-4000-8000-000000000201", "title": "Studio", "primary-type": "Album", "secondary-types": [], "first-release-date": "2001"},
+			{"id": "b0000000-0000-4000-8000-000000000202", "title": "The Film", "primary-type": "Album", "secondary-types": ["Soundtrack"], "first-release-date": "2002"}]}`))
+	})
+	api.Set("/ws/2/release", httpStatus(404))
+	e := newEnv(t, Options{MusicBrainzURL: api.URL()})
+	a, err := e.svc.MusicBrainz.Artist(bg(), chopinMBID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string][]string{}
+	for _, al := range a.Albums {
+		got[al.Title] = al.SecondaryTypes
+	}
+	if len(got["Studio"]) != 0 || !slices.Equal(got["The Film"], []string{"Soundtrack"}) {
+		t.Errorf("secondary types = %v", got)
+	}
+}

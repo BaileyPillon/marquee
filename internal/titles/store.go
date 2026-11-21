@@ -50,7 +50,7 @@ type scanner interface{ Scan(dest ...any) error }
 
 const titleCols = `id, kind, tmdb_id, tvmaze_id, imdb_id, mbid, name, sort_name, alt_names, year, overview, tagline,
 	certification, trailer_key, runtime_min, genres, poster_ref, backdrop_ref, status, monitored, root_folder,
-	added_at, updated_at, refreshed_at`
+	added_at, updated_at, refreshed_at, release_date, life_begin, life_end`
 
 func scanTitle(s scanner) (Title, error) {
 	var (
@@ -60,14 +60,19 @@ func scanTitle(s scanner) (Title, error) {
 		alt, genres               string
 		mon                       int
 		added, updated, refreshed string
+		lifeBegin, lifeEnd        string
 	)
 	if err := s.Scan(&t.ID, &t.Kind, &tmdb, &tvmaze, &imdb, &mbid, &t.Name, &t.SortName, &alt, &t.Year,
 		&t.Overview, &t.Tagline, &t.Certification, &t.TrailerKey, &t.RuntimeMin, &genres, &t.PosterRef,
-		&t.BackdropRef, &t.Status, &mon, &t.RootFolder, &added, &updated, &refreshed); err != nil {
+		&t.BackdropRef, &t.Status, &mon, &t.RootFolder, &added, &updated, &refreshed,
+		&t.ReleaseDate, &lifeBegin, &lifeEnd); err != nil {
 		return Title{}, err
 	}
 	t.TMDBID, t.TVmazeID, t.IMDbID, t.MBID = tmdb.Int64, tvmaze.Int64, imdb.String, mbid.String
 	t.Monitored = mon != 0
+	if t.Kind == KindArtist {
+		t.LifeSpan = &LifeSpan{Begin: lifeBegin, End: lifeEnd}
+	}
 	if err := json.Unmarshal([]byte(alt), &t.AltNames); err != nil {
 		return Title{}, err
 	}
@@ -120,6 +125,20 @@ func b2i(b bool) int {
 		return 1
 	}
 	return 0
+}
+
+func lifeBegin(d *Detail) string {
+	if d.LifeSpan == nil {
+		return ""
+	}
+	return d.LifeSpan.Begin
+}
+
+func lifeEnd(d *Detail) string {
+	if d.LifeSpan == nil {
+		return ""
+	}
+	return d.LifeSpan.End
 }
 
 // ---- identity --------------------------------------------------------------
@@ -263,19 +282,19 @@ func (q queries) detail(ctx context.Context, id int64) (*Detail, error) {
 	}
 
 	rows, err = q.x.QueryContext(ctx,
-		`SELECT id, mbid, name, year, type, monitored, cover_ref FROM albums WHERE title_id = ? ORDER BY year, name, id`, id)
+		`SELECT id, mbid, name, year, type, studio, monitored, cover_ref FROM albums WHERE title_id = ? ORDER BY year, name, id`, id)
 	if err != nil {
 		return nil, err
 	}
 	byID := map[int64]int{}
 	for rows.Next() {
 		var a Album
-		var mon int
-		if err := rows.Scan(&a.ID, &a.MBID, &a.Name, &a.Year, &a.Type, &mon, &a.CoverRef); err != nil {
+		var mon, studio int
+		if err := rows.Scan(&a.ID, &a.MBID, &a.Name, &a.Year, &a.Type, &studio, &mon, &a.CoverRef); err != nil {
 			rows.Close()
 			return nil, err
 		}
-		a.Monitored, a.Tracks = mon != 0, []Track{}
+		a.Studio, a.Monitored, a.Tracks = studio != 0, mon != 0, []Track{}
 		byID[a.ID] = len(d.Albums)
 		d.Albums = append(d.Albums, a)
 	}
@@ -455,12 +474,12 @@ func (q queries) insert(ctx context.Context, d *Detail, now time.Time) (int64, e
 	res, err := q.x.ExecContext(ctx,
 		`INSERT INTO titles (kind, tmdb_id, tvmaze_id, imdb_id, mbid, name, sort_name, alt_names, year, overview,
 			tagline, certification, trailer_key, runtime_min, genres, poster_ref, backdrop_ref, status, monitored,
-			root_folder, added_at, updated_at, refreshed_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			root_folder, added_at, updated_at, refreshed_at, release_date, life_begin, life_end)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		d.Kind, nullInt(d.TMDBID), nullInt(d.TVmazeID), nullText(d.IMDbID), nullText(d.MBID),
 		d.Name, d.SortName, jsonText(d.AltNames), d.Year, d.Overview, d.Tagline, d.Certification, d.TrailerKey,
 		d.RuntimeMin, jsonText(d.Genres), d.PosterRef, d.BackdropRef, d.Status, b2i(d.Monitored),
-		d.RootFolder, ts, ts, ts)
+		d.RootFolder, ts, ts, ts, d.ReleaseDate, lifeBegin(d), lifeEnd(d))
 	if err != nil {
 		return 0, err
 	}
@@ -504,10 +523,14 @@ func (q queries) refresh(ctx context.Context, id int64, d *Detail, now time.Time
 	if _, err := q.x.ExecContext(ctx,
 		`UPDATE titles SET name = ?, sort_name = ?, alt_names = ?, year = ?, overview = ?, tagline = ?,
 			certification = ?, trailer_key = ?, runtime_min = ?, genres = ?, poster_ref = ?, backdrop_ref = ?,
-			status = ?, updated_at = ?, refreshed_at = ?
+			status = ?, updated_at = ?, refreshed_at = ?,
+			release_date = CASE WHEN ? <> '' THEN ? ELSE release_date END,
+			life_begin = CASE WHEN ? <> '' THEN ? ELSE life_begin END,
+			life_end = ?
 		 WHERE id = ?`,
 		d.Name, d.SortName, jsonText(d.AltNames), d.Year, d.Overview, d.Tagline, d.Certification, d.TrailerKey,
-		d.RuntimeMin, jsonText(d.Genres), d.PosterRef, d.BackdropRef, d.Status, ts, ts, id); err != nil {
+		d.RuntimeMin, jsonText(d.Genres), d.PosterRef, d.BackdropRef, d.Status, ts, ts,
+		d.ReleaseDate, d.ReleaseDate, lifeBegin(d), lifeBegin(d), lifeEnd(d), id); err != nil {
 		return err
 	}
 	// Fill an IMDb id we did not have, unless another title already holds it.
@@ -562,10 +585,10 @@ func (q queries) refresh(ctx context.Context, id int64, d *Detail, now time.Time
 // only set when the album is new.
 func (q queries) upsertAlbum(ctx context.Context, titleID int64, a Album) (int64, error) {
 	if _, err := q.x.ExecContext(ctx,
-		`INSERT INTO albums (title_id, mbid, name, year, type, monitored, cover_ref) VALUES (?, ?, ?, ?, ?, ?, ?)
+		`INSERT INTO albums (title_id, mbid, name, year, type, studio, monitored, cover_ref) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 		 ON CONFLICT (mbid) DO UPDATE SET name = excluded.name, year = excluded.year, type = excluded.type,
-		   cover_ref = excluded.cover_ref`,
-		titleID, a.MBID, a.Name, a.Year, a.Type, b2i(a.Monitored), a.CoverRef); err != nil {
+		   studio = excluded.studio, cover_ref = excluded.cover_ref`,
+		titleID, a.MBID, a.Name, a.Year, a.Type, b2i(a.Studio), b2i(a.Monitored), a.CoverRef); err != nil {
 		return 0, err
 	}
 	var id int64
@@ -630,7 +653,11 @@ func (q queries) setMonitored(ctx context.Context, id int64, on bool) error {
 		`UPDATE episodes SET monitored = ? WHERE title_id = ? AND (? = 0 OR season > 0)`, b2i(on), id, b2i(on)); err != nil {
 		return err
 	}
-	_, err = q.x.ExecContext(ctx, `UPDATE albums SET monitored = ? WHERE title_id = ?`, b2i(on), id)
+	// Turning an artist on wants the studio albums; EPs, soundtracks and the rest
+	// stay as they are (MonitorAlbums turns those on by name). Off turns every
+	// album off.
+	_, err = q.x.ExecContext(ctx,
+		`UPDATE albums SET monitored = ? WHERE title_id = ? AND (? = 0 OR studio = 1)`, b2i(on), id, b2i(on))
 	return err
 }
 

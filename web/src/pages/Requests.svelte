@@ -1,46 +1,98 @@
 <script lang="ts">
-  import { tick } from 'svelte';
+  import { onMount, tick } from 'svelte';
   import Button from '../lib/ui/Button.svelte';
-  import Icon from '../lib/ui/Icon.svelte';
-  import LabelValue from '../lib/ui/LabelValue.svelte';
   import LoadFailed from '../lib/ui/LoadFailed.svelte';
+  import NotSetUp from '../lib/ui/NotSetUp.svelte';
   import PageHeader from '../lib/ui/PageHeader.svelte';
   import PageSkeleton from '../lib/ui/PageSkeleton.svelte';
-  import Panel from '../lib/ui/Panel.svelte';
   import SectionHead from '../lib/ui/SectionHead.svelte';
   import Tabs, { type TabItem } from '../lib/ui/Tabs.svelte';
   import Toast from '../lib/ui/Toast.svelte';
+  import { ApiError } from '../lib/core/api';
+  import { failureKey, isRouteMissing } from '../lib/core/catalog';
+  import { debounce, onEvent, onResync } from '../lib/core/events';
   import { t } from '../lib/core/i18n';
+  import { libraryIndex } from '../lib/core/libraryIndex.svelte.ts';
   import { isDesktop } from '../lib/core/media';
-  import { resource } from '../lib/core/resource.svelte.ts';
+  import { peopleState } from '../lib/core/people.svelte';
+  import { requestsState } from '../lib/core/requests.svelte.ts';
+  import {
+    approveRequest,
+    cancelRequest,
+    declineRequest,
+    listRequests,
+    type RequestItem,
+  } from '../lib/core/requestsApi';
+  import { askerFirst } from '../lib/core/requestView';
+  import { session } from '../lib/core/session.svelte';
   import { createToaster } from '../lib/core/toast.svelte.ts';
-  import type { DecidedRequest, RequestDecision, WaitingRequest } from '../lib/core/views';
-  import { decideRequest, getRequests } from '../lib/mock/requests';
+  import DeclineDialog from './requests/DeclineDialog.svelte';
   import DecidedList from './requests/DecidedList.svelte';
+  import PeoplePanel from './requests/PeoplePanel.svelte';
   import PhoneApproval from './requests/PhoneApproval.svelte';
   import RequestCard from './requests/RequestCard.svelte';
+  import WatchlistSummary from './requests/WatchlistSummary.svelte';
 
-  const page = resource(() => 'requests', () => getRequests());
-  const view = $derived(page.data);
+  const role = $derived(session.me?.role);
+  const isStaff = $derived(role === 'owner' || role === 'admin');
+  const isOwner = $derived(role === 'owner');
+
   const toaster = createToaster();
 
-  // The lists start from what the server sent and change as the owner decides. Late answers from
-  // the server will replace them the same way.
-  let waiting = $state.raw<WaitingRequest[]>([]);
-  let decided = $state.raw<DecidedRequest[]>([]);
-  let decidedNow = $state(0);
-  $effect(() => {
-    if (!view) return;
-    waiting = view.waiting;
-    decided = view.decided;
-    decidedNow = 0;
+  // ---- loading: the whole list once, then again whenever the server says something changed ----
+  type Status = 'loading' | 'ready' | 'failed' | 'off';
+  let items = $state.raw<RequestItem[]>([]);
+  let status = $state<Status>('loading');
+
+  async function load(): Promise<void> {
+    try {
+      const res = await listRequests({ limit: 200, mine: !isStaff });
+      items = res.items;
+      status = 'ready';
+    } catch (err) {
+      if (isRouteMissing(err)) status = 'off';
+      else if (status !== 'ready') status = 'failed';
+    }
+  }
+
+  onMount(() => {
+    void load();
+    libraryIndex.ensure();
+    if (isStaff) void peopleState.reload();
+    const soon = debounce(() => {
+      void load();
+      if (isStaff) void peopleState.reload();
+    }, 200);
+    const stop = onEvent('requests', () => soon.call());
+    const stopResync = onResync(() => soon.call());
+    return () => {
+      soon.cancel();
+      stop();
+      stopResync();
+    };
   });
 
-  let tab = $state('waiting');
-  let busy = $state<string | null>(null);
-  let activeId = $state<string | undefined>();
-  const active = $derived(waiting.find((r) => r.id === activeId) ?? waiting[0]);
+  /** Swap one request for its fresh copy (an answer from the server) without waiting for the stream. */
+  function replace(next: RequestItem): void {
+    items = items.map((r) => (r.id === next.id ? next : r));
+  }
 
+  // ---- what to show ----
+  const waiting = $derived(items.filter((r) => r.state === 'pending'));
+  const decided = $derived(
+    items
+      .filter((r) => r.state !== 'pending')
+      .sort(
+        (a, b) =>
+          Date.parse(b.decidedAt ?? b.updatedAt) - Date.parse(a.decidedAt ?? a.updatedAt),
+      ),
+  );
+  const WEEK_MS = 7 * 86_400_000;
+  const decidedThisWeek = $derived(
+    decided.filter((r) => Date.now() - Date.parse(r.decidedAt ?? r.updatedAt) < WEEK_MS).length,
+  );
+
+  let tab = $state('waiting');
   const tabs = $derived<TabItem[]>([
     { id: 'waiting', label: t('requests.tab.waiting', { n: waiting.length }) },
     { id: 'approved', label: t('requests.tab.approved') },
@@ -52,11 +104,11 @@
   const showWaiting = $derived(tab === 'waiting' || tab === 'all');
   const shownDecided = $derived(
     tab === 'approved'
-      ? decided.filter((d) => d.outcome === 'approved')
+      ? decided.filter((d) => d.state === 'approved' || d.state === 'available' || d.state === 'partial')
       : tab === 'declined'
-        ? decided.filter((d) => d.outcome === 'declined')
+        ? decided.filter((d) => d.state === 'declined')
         : tab === 'watchlists'
-          ? decided.filter((d) => d.fromWatchlist)
+          ? items.filter((d) => d.source === 'watchlist')
           : decided,
   );
   const decidedHeading = $derived(
@@ -69,64 +121,140 @@
           : t('requests.recent'),
   );
   const summary = $derived(
-    t('requests.summary', {
-      waiting: waiting.length,
-      decided: (view?.decidedThisWeek ?? 0) + decidedNow,
-    }),
+    t('requests.summary', { waiting: waiting.length, decided: decidedThisWeek }),
   );
 
+  // ---- answering ----
+  let busy = $state<number | null>(null);
   let root: HTMLElement | undefined = $state();
 
-  async function decide(request: WaitingRequest, outcome: RequestDecision): Promise<void> {
-    if (busy) return;
-    busy = request.id;
-    try {
-      await decideRequest(request.id, outcome);
-    } catch {
-      toaster.show(t('requests.toast.failed'));
-      busy = null;
-      return;
-    }
-    waiting = waiting.filter((r) => r.id !== request.id);
-    decided = [
-      {
-        id: request.id,
-        title: request.title,
-        detail: t(
-          outcome === 'approved' ? 'requests.decidedBy.approved' : 'requests.decidedBy.declined',
-          { who: request.requester },
-        ),
-        outcome,
-        when: t('requests.today'),
-        fromWatchlist: false,
-      },
-      ...decided,
-    ];
-    decidedNow += 1;
-    busy = null;
-    toaster.show(
-      t(outcome === 'approved' ? 'requests.toast.approved' : 'requests.toast.declined', {
-        title: request.title,
-        who: request.requester,
-      }),
-    );
-    // The button that was pressed is gone with its card: keep keyboard focus on the page.
+  /** The button that was pressed is gone with its card: keep keyboard focus on the page. */
+  async function settleFocus(): Promise<void> {
     await tick();
     root?.focus({ preventScroll: true });
   }
 
+  function failedText(err: unknown): string {
+    if (err instanceof ApiError && (err.code === 'not_pending' || err.code === 'not_cancellable')) {
+      return t(failureKey(err));
+    }
+    return t('requests.toast.failed');
+  }
+
+  async function approve(request: RequestItem, alwaysAllow = false): Promise<void> {
+    if (busy !== null) return;
+    busy = request.id;
+    try {
+      replace(await approveRequest(request.id, { alwaysAllowUHD: alwaysAllow }));
+      void requestsState.refresh();
+      toaster.show(
+        t(alwaysAllow ? 'requests.toast.approvedAlways' : 'requests.toast.approved', {
+          title: request.title.name,
+          who: askerFirst(request),
+        }),
+      );
+      await settleFocus();
+    } catch (err) {
+      toaster.show(failedText(err));
+      void load();
+    } finally {
+      busy = null;
+    }
+  }
+
+  // Declining asks for an optional reason first, in a small dialog.
+  let declineTarget = $state<RequestItem | undefined>();
+  let declineOpen = $state(false);
+  let declineBusy = $state(false);
+  let declineError = $state('');
+
+  function askDecline(request: RequestItem): void {
+    declineTarget = request;
+    declineError = '';
+    declineOpen = true;
+  }
+
+  async function confirmDecline(reason: string): Promise<void> {
+    const request = declineTarget;
+    if (!request || declineBusy) return;
+    declineBusy = true;
+    declineError = '';
+    try {
+      replace(await declineRequest(request.id, reason));
+      void requestsState.refresh();
+      declineOpen = false;
+      toaster.show(
+        t('requests.toast.declined', { title: request.title.name, who: askerFirst(request) }),
+      );
+      await settleFocus();
+    } catch (err) {
+      declineError = failedText(err);
+      if (err instanceof ApiError && err.code === 'not_pending') void load();
+    } finally {
+      declineBusy = false;
+    }
+  }
+
+  // ---- a member's own asks ----
+  let cancelling = $state<number | null>(null);
+
+  async function cancel(request: RequestItem): Promise<void> {
+    if (cancelling !== null) return;
+    cancelling = request.id;
+    try {
+      replace(await cancelRequest(request.id));
+      void requestsState.refresh();
+      toaster.show(t('requests.toast.cancelled', { title: request.title.name }));
+    } catch (err) {
+      toaster.show(failedText(err));
+      void load();
+    } finally {
+      cancelling = null;
+    }
+  }
+
+  // ---- the phone's big card ----
+  let activeId = $state<number | undefined>();
+  const active = $derived(waiting.find((r) => r.id === activeId) ?? waiting[0]);
+
   const uid = $props.id();
   const waitingId = `req-waiting-${uid}`;
   const decidedId = `req-decided-${uid}`;
-  const peopleId = `req-people-${uid}`;
-  const watchId = `req-watch-${uid}`;
+  const mineId = `req-mine-${uid}`;
 </script>
 
 <div class="page" tabindex="-1" bind:this={root}>
-  {#if view}
-    {#if $isDesktop}
+  {#if status === 'off'}
+    {#if $isDesktop}<PageHeader title={t('route.requests')} />{/if}
+    <NotSetUp hint={t('requests.offHint')} />
+  {:else if status === 'ready'}
+    {#if !isStaff}
+      <!-- A member: their own asks, and Cancel on the ones still waiting. -->
+      {#if $isDesktop}
+        <div class="head">
+          <PageHeader
+            title={t('requests.mine')}
+            subtitle={t('requests.mine.summary', { waiting: waiting.length })}
+          />
+        </div>
+      {:else}
+        <header class="phone-head">
+          <h1>{t('requests.mine')}</h1>
+          <p>{t('requests.mine.summary', { waiting: waiting.length })}</p>
+        </header>
+      {/if}
+      <section aria-labelledby={mineId}>
+        <h2 id={mineId} class="sr-only">{t('requests.mine')}</h2>
+        {#if items.length > 0}
+          <DecidedList {items} oncancel={cancel} busyId={cancelling} />
+        {:else}
+          <p class="empty">{t('requests.mine.empty')}</p>
+          <div class="empty-action"><Button href="/explore">{t('library.empty.link')}</Button></div>
+        {/if}
+      </section>
+    {:else if $isDesktop}
       <div class="head">
-        <PageHeader title={t('route.requests')} subtitle={summary} preview />
+        <PageHeader title={t('route.requests')} subtitle={summary} />
       </div>
 
       <div class="tabs">
@@ -155,13 +283,14 @@
                     <RequestCard
                       {request}
                       busy={busy === request.id}
-                      onapprove={() => decide(request, 'approved')}
-                      ondecline={() => decide(request, 'declined')}
+                      onapprove={() => approve(request)}
+                      ondecline={() => askDecline(request)}
+                      onalways={() => approve(request, true)}
                     />
                   {/each}
                 </div>
               {:else}
-                <p class="empty">{t('requests.empty')}</p>
+                <p class="empty">{t('requests.phone.none')}</p>
               {/if}
             </section>
           {/if}
@@ -175,7 +304,7 @@
               {/if}
             </SectionHead>
             {#if shownDecided.length > 0}
-              <DecidedList items={shownDecided} />
+              <DecidedList items={tab === 'waiting' ? shownDecided.slice(0, 6) : shownDecided} />
             {:else}
               <p class="empty">{t('requests.empty')}</p>
             {/if}
@@ -183,50 +312,8 @@
         </div>
 
         <div class="side">
-          <Panel labelledby={peopleId} padding="20px">
-            <h2 id={peopleId} class="h2">{t('requests.people')}</h2>
-            <p class="note">{t('requests.peopleNote')}</p>
-            <ul class="people">
-              {#each view.people as person (person.name)}
-                <li>
-                  <span class="avatar" aria-hidden="true">{person.name.charAt(0)}</span>
-                  <div class="person">
-                    <div class="name">{person.name}</div>
-                    <LabelValue
-                      variant="plain"
-                      items={[
-                        { label: t('requests.hdAsks'), value: person.hd },
-                        { label: t('requests.fourKAsks'), value: person.fourK },
-                        {
-                          label: t('requests.autoApprove'),
-                          value: person.autoApprove ? t('toggle.on') : t('toggle.off'),
-                          tone: person.autoApprove ? 'on' : 'off',
-                        },
-                      ]}
-                    />
-                  </div>
-                </li>
-              {/each}
-            </ul>
-            <div class="people-foot">
-              <Button>
-                <Icon name="sliders" size={18} stroke={1.9} />
-                {t('requests.editLimits')}
-              </Button>
-            </div>
-          </Panel>
-
-          <Panel labelledby={watchId} padding="20px">
-            <h2 id={watchId} class="h2">{t('requests.watchlists')}</h2>
-            <p class="watch-head">{view.watchlists.headline}</p>
-            <p class="watch-detail">{view.watchlists.detail}</p>
-            <div class="watch-foot">
-              <Button>
-                <Icon name="refresh" size={18} stroke={1.9} />
-                {t('requests.checkNow')}
-              </Button>
-            </div>
-          </Panel>
+          <PeoplePanel canEdit={isOwner} onsaved={() => toaster.show(t('limits.saved'))} />
+          <WatchlistSummary canCheck={isOwner} onnote={(m) => toaster.show(m)} />
         </div>
       </div>
     {:else}
@@ -240,20 +327,36 @@
           {active}
           others={waiting.filter((r) => r.id !== active.id)}
           busy={busy === active.id}
-          onapprove={() => decide(active, 'approved')}
-          ondecline={() => decide(active, 'declined')}
+          onapprove={() => approve(active)}
+          ondecline={() => askDecline(active)}
+          onalways={() => approve(active, true)}
           onpick={(id) => (activeId = id)}
         />
       {:else}
         <p class="empty">{t('requests.phone.none')}</p>
       {/if}
+
+      {#if decided.length > 0}
+        <section class="phone-decided" aria-labelledby={decidedId}>
+          <SectionHead title={t('requests.recent')} id={decidedId} size="md" gap={10} />
+          <DecidedList items={decided.slice(0, 6)} />
+        </section>
+      {/if}
     {/if}
-  {:else if page.failed}
-    <LoadFailed onretry={page.reload} />
+  {:else if status === 'failed'}
+    <LoadFailed onretry={() => void load()} />
   {:else}
     <PageSkeleton heading cards={2} />
   {/if}
 </div>
+
+<DeclineDialog
+  bind:open={declineOpen}
+  request={declineTarget}
+  busy={declineBusy}
+  error={declineError}
+  onconfirm={confirmDecline}
+/>
 
 <Toast message={toaster.message} />
 
@@ -291,6 +394,9 @@
     line-height: 20px;
     color: var(--muted);
   }
+  .empty-action {
+    margin-top: 12px;
+  }
   .soft-link {
     padding: 0;
     border: 0;
@@ -311,69 +417,6 @@
     flex-direction: column;
     gap: 20px;
   }
-  .h2 {
-    font-size: 18px;
-    font-weight: 600;
-    line-height: 24px;
-    color: var(--text);
-  }
-  .note {
-    margin: 2px 0 8px;
-    font-size: 13px;
-    line-height: 18px;
-    color: var(--muted);
-  }
-  .people li {
-    display: flex;
-    align-items: flex-start;
-    gap: 12px;
-    padding: 14px 0;
-    border-top: 1px solid var(--hairline-strong);
-  }
-  .avatar {
-    flex: 0 0 auto;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 34px;
-    height: 34px;
-    border-radius: 50%;
-    background: var(--avatar);
-    font-size: 14px;
-    font-weight: 600;
-    line-height: 1;
-    color: var(--text);
-  }
-  .person {
-    flex: 1 1 0;
-    min-width: 0;
-  }
-  .name {
-    font-size: 14.5px;
-    font-weight: 600;
-    line-height: 20px;
-    color: var(--text);
-  }
-  .people-foot {
-    padding-top: 16px;
-    border-top: 1px solid var(--hairline-strong);
-  }
-  .watch-head {
-    margin-top: 8px;
-    font-size: 14px;
-    font-weight: 600;
-    line-height: 20px;
-    color: var(--text);
-  }
-  .watch-detail {
-    margin-top: 4px;
-    font-size: 13px;
-    line-height: 18px;
-    color: var(--text-3);
-  }
-  .watch-foot {
-    margin-top: 14px;
-  }
 
   .phone-head {
     padding: 10px 4px 12px;
@@ -390,5 +433,8 @@
     font-weight: 500;
     line-height: 18px;
     color: var(--muted);
+  }
+  .phone-decided {
+    margin-top: 22px;
   }
 </style>

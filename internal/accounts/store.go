@@ -401,3 +401,15 @@ func (s *Store) RevokeAPIKey(ctx context.Context, userID, id int64, now time.Tim
 	}
 	return err
 }
+
+// InsertMember adds a member. A name that is taken gives ErrNameTaken.
+func (s *Store) InsertMember(ctx context.Context, name, passwordHash string, now time.Time) (User, error) {
+	u, err := insertUser(ctx, s.db, name, RoleMember, passwordHash, now)
+	if err != nil {
+		if db.IsUniqueViolation(err) {
+			return User{}, ErrNameTaken
+		}
+		return User{}, err
+	}
+	return u, nil
+}
