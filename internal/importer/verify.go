@@ -95,6 +95,112 @@ func nameMatches(d *titles.Detail, name string) bool {
 	return false
 }
 
+// ---- reading a film's title out of a name ------------------------------------------
+//
+// Real downloads often carry the right release name but a file name with extra
+// words ("Sprite Fright - Open Movie by Blender Studio-804p.mp4") or a mashed
+// one ("springopenmovie.mp4"). So a name is allowed to be the film's title
+// (nameMatches) plus noise words, or a mashed form of the same. Everything else
+// is another title.
+
+// noiseWords are words that follow a title in a file or folder name without
+// saying anything about which film it is: what a producer, a site or the
+// encoder adds. A resolution such as 804p, 1608p or 2160p counts too (see
+// isNoiseWord). The article "the" is not here, nor a bare number: "Charge 2" and
+// "Charge of the Light Brigade" are other films than "Charge".
+var noiseWords = map[string]bool{
+	"open": true, "movie": true, "film": true, "blender": true, "studio": true, "by": true,
+	"official": true, "full": true, "hd": true, "fhd": true, "uhd": true, "4k": true, "8k": true,
+	// what the release parser leaves in a title when it does not know the token
+	"web": true, "dl": true, "webdl": true, "webrip": true, "bluray": true, "brrip": true, "bdrip": true,
+	"dvdrip": true, "hdrip": true, "hdtv": true,
+	"x264": true, "x265": true, "h264": true, "h265": true, "hevc": true, "avc": true, "xvid": true,
+	"aac": true, "ac3": true, "dts": true,
+}
+
+var reResolutionWord = regexp.MustCompile(`^\d{3,4}[pi]$`)
+
+func isNoiseWord(w string) bool {
+	return noiseWords[w] || (len(w) >= 4 && len(w) <= 5 && reResolutionWord.MatchString(w))
+}
+
+// onlyNoise reports whether s is nothing but noise words written together, with
+// no spaces ("openmovie" is "open" and "movie"; "" is trivially so).
+func onlyNoise(s string) bool {
+	reach := make([]bool, len(s)+1) // reach[i]: s[:i] is noise words only
+	reach[0] = true
+	for i := 0; i < len(s); i++ {
+		if !reach[i] {
+			continue
+		}
+		for j := i + 1; j <= len(s); j++ {
+			if isNoiseWord(s[i:j]) {
+				reach[j] = true
+			}
+		}
+	}
+	return reach[len(s)]
+}
+
+// titleVariant reports whether name (normalized, from a file) reads as want
+// (normalized, the catalog's): it is equal, or it starts with want at a word
+// boundary and the rest is noise words, or, with the spaces taken out of both,
+// it is want written together and perhaps followed by noise words written
+// together. The last form is only trusted when want is at least four characters
+// long, so a short title cannot match by chance.
+func titleVariant(name, want string) bool {
+	if name == "" || want == "" {
+		return false
+	}
+	if name == want {
+		return true
+	}
+	if rest, ok := strings.CutPrefix(name, want+" "); ok {
+		spaced := true
+		for _, w := range strings.Fields(rest) {
+			if !isNoiseWord(w) {
+				spaced = false
+				break
+			}
+		}
+		if spaced {
+			return true
+		}
+	}
+	name, want = strings.ReplaceAll(name, " ", ""), strings.ReplaceAll(want, " ", "")
+	if len([]rune(want)) < 4 {
+		return false
+	}
+	rest, ok := strings.CutPrefix(name, want)
+	return ok && onlyNoise(rest)
+}
+
+// titleReads reports whether a title read from a name is the catalog title
+// (its own or an alternative) in any of the forms titleVariant allows.
+func titleReads(d *titles.Detail, name string) bool {
+	n := parse.Normalize(name)
+	if n == "" {
+		return false
+	}
+	if titleVariant(n, parse.Normalize(d.Name)) {
+		return true
+	}
+	for _, alt := range d.AltNames {
+		if titleVariant(n, parse.Normalize(alt)) {
+			return true
+		}
+	}
+	return false
+}
+
+// cleanTitle reports whether a title that is not the film's is clear enough to
+// count against it: more than one word, or at least six characters. A short
+// single word ("Up", "Cars") says too little: it may be a leftover of a name.
+func cleanTitle(title string) bool {
+	n := parse.Normalize(title)
+	return len(strings.Fields(n)) > 1 || len([]rune(n)) >= 6
+}
+
 func absInt(n int) int {
 	if n < 0 {
 		return -n
@@ -244,35 +350,83 @@ func kindWord(p plan) string {
 
 // ---- movies --------------------------------------------------------------------
 
+// movieReading is what one name of a file (its own, a folder's, the release's)
+// says about the film.
+type movieReading struct {
+	useful      bool // the title says something (not empty, not a hash, not "movie")
+	match       bool // the title is the film's (see titleReads)
+	yearInTitle bool // it matches only with its year counted in the title ("Blade Runner 2049")
+}
+
+func (v *verifier) readMovie(r parse.Release) movieReading {
+	if !usefulTitle(r.Title) {
+		return movieReading{}
+	}
+	m := movieReading{useful: true}
+	switch {
+	case titleReads(v.d, r.Title):
+		m.match = true
+	case r.Year >= 1900 && titleReads(v.d, r.Title+" "+strconv.Itoa(r.Year)):
+		m.match, m.yearInTitle = true, true
+	}
+	return m
+}
+
+// movie decides whether a file is the film that was asked for. The names are
+// read in order (the file's own, its folders, the release name it was grabbed
+// as) and the first one whose title is the film wins, so a right release name
+// carries a file whose own name has extra words or is mashed together. The one
+// thing that overrules the order is the file's own name naming another film:
+//
+//   - A file-name reading that is a CLEAN title (more than one word, or at least
+//     six characters) that is not the film's, neither equal nor a noise variant
+//     nor a mashed form of it, is a positive contradiction and rejects the file,
+//     whatever the release says ("Nosferatu.mkv" in "Metropolis.1927...",
+//     "Charge of the Light Brigade.mkv" in "Charge.2022...").
+//   - A file-name reading that is the film's title plus noise words or a mashed
+//     form of it is not a contradiction: it matches.
+//   - A short single word, a hash or "movie" says too little to count against
+//     the film, so the folders and the release decide.
+//
+// Folder readings never reject on their own: one that is not the film's is
+// passed over for the next. When no reading is the film's the file is rejected
+// with the first useful reading as the reason, as it always was.
+//
+// The year check is unchanged: a year more than one off the film's rejects. The
+// year comes from the matched reading, else from the first other reading that
+// carries one and is either the film's or says no title; a reading that names
+// another title speaks of another film, so its year is left out.
 func (v *verifier) movie(f srcFile) (plan, bool, string) {
 	list := names(v.root, f, v.release)
 	reads := parseAll(list)
 	if reads[0].IsTV() {
 		return plan{}, false, "This looks like a TV episode, not a film"
 	}
-	idx := -1
+	rd := make([]movieReading, len(reads))
+	first, idx := -1, -1 // the first useful reading; the first that is the film
 	for i, r := range reads {
-		if usefulTitle(r.Title) {
+		rd[i] = v.readMovie(r)
+		if rd[i].useful && first < 0 {
+			first = i
+		}
+		if rd[i].match && idx < 0 {
 			idx = i
-			break
 		}
 	}
-	if idx < 0 {
-		return plan{}, false, "The name does not say what this file is"
-	}
-	read := reads[idx]
-	year, yearInTitle := read.Year, false
 	switch {
-	case nameMatches(v.d, read.Title):
-	case read.Year >= 1900 && nameMatches(v.d, read.Title+" "+strconv.Itoa(read.Year)):
-		year, yearInTitle = 0, true // the number was part of the title ("Blade Runner 2049")
-	default:
-		return plan{}, false, fmt.Sprintf("This is %q, not %q", read.Title, v.d.Name)
+	case first < 0:
+		return plan{}, false, "The name does not say what this file is"
+	case idx < 0, rd[0].useful && !rd[0].match && cleanTitle(reads[0].Title):
+		return plan{}, false, fmt.Sprintf("This is %q, not %q", reads[first].Title, v.d.Name)
+	}
+	year := 0
+	if !rd[idx].yearInTitle { // else the number was part of the title
+		year = reads[idx].Year
 	}
 	if year == 0 {
-		// The file's own name has no year; a folder or the release name may.
+		// The matched name has no year; another may.
 		for i, r := range reads {
-			if r.Year > 0 && !(yearInTitle && i == idx) {
+			if i != idx && r.Year > 0 && !rd[i].yearInTitle && (!rd[i].useful || rd[i].match) {
 				year = r.Year
 				break
 			}
@@ -304,6 +458,13 @@ func (v *verifier) show(f srcFile) (plan, bool, string) {
 	if idx < 0 {
 		return plan{}, false, "The name does not say which show this is"
 	}
+	// Unlike a film (see movie), a show is checked against the FIRST useful
+	// reading only, and by equal names. "First matching reading wins" would
+	// turn a file that names another show into this one whenever the release
+	// is right ("Lost.S01E01.mkv" in "Glee.S01..."): the file name is the only
+	// evidence of which show a file is, and the "clean title" guard that saves
+	// films (six characters or more) is too weak here, where short one-word
+	// names (Lost, Glee, Fargo, House) are common.
 	if t := reads[idx].Title; !nameMatches(v.d, t) {
 		return plan{}, false, fmt.Sprintf("This is %q, not %q", t, v.d.Name)
 	}
