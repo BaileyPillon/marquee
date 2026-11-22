@@ -16,6 +16,36 @@ import (
 	"github.com/BaileyPillon/marquee/internal/metadata"
 )
 
+// A title stored with the provider's primary year (2024) takes the first
+// release year (2021) on its next refresh. Year is provider data, not a field
+// the user can set, so refresh overwrites it; the calendar's primary date stays.
+func TestRefreshCorrectsAMoviesYearToItsFirstRelease(t *testing.T) {
+	f := newFixture(t)
+	old := &metadata.MovieInfo{TMDBID: 891761, Title: "Sprite Fright", OriginalTitle: "Sprite Fright", Year: 2024, ReleaseDate: "2024-03-01"}
+	f.movies.movies["891761"] = old
+	d, _, err := f.svc.Add(bg(), KindMovie, metadata.ProviderTMDB, "891761", AddOptions{Monitored: true, RootFolder: "/movies"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d.Year != 2024 {
+		t.Fatalf("year before = %d", d.Year)
+	}
+
+	fresh := *old
+	fresh.Year = 2021 // what metadata now reports: the 2021-10-29 premiere
+	f.movies.movies["891761"] = &fresh
+	after, err := f.svc.Refresh(bg(), d.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if after.Year != 2021 || after.ReleaseDate != "2024-03-01" {
+		t.Errorf("after refresh: year=%d releaseDate=%q, want 2021 and the primary date kept", after.Year, after.ReleaseDate)
+	}
+	if !after.Monitored || after.RootFolder != "/movies" {
+		t.Errorf("user choices changed: monitored=%v folder=%q", after.Monitored, after.RootFolder)
+	}
+}
+
 func TestRefreshUpdatesTheTitleAndKeepsWhatTheUserChose(t *testing.T) {
 	f := newFixture(t)
 	d, _, err := f.svc.Add(bg(), KindShow, "tvmaze", "99001", AddOptions{Monitored: true, RootFolder: "/tv"})

@@ -59,6 +59,13 @@ and when a download is finished it imports it (checks the files are really the t
 when that is all there is, renames, links or moves it into the library folder, then tells your media server).
 A release that turns out fake or wrong is added to the blocklist and Marquee looks for the next best one.
 
+**Downloads that get stuck.** Some torrents never finish: an Internet Archive torrent whose files changed after it
+was made sits at 99.97% for ever. When a download makes no progress for 30 minutes, Marquee gives up on it: it is
+marked failed with where it stopped, removed from the app together with what it had downloaded, added to the
+blocklist, and Marquee searches for another release. A download that is paused or queued is never given up on.
+Change the time, or turn this off (0 minutes), in **Settings, Connections, Download apps**. The settings are the
+`downloads` section (`{"stallMinutes": 30, "removeStalled": true}`) of `PUT /api/v1/settings/downloads`.
+
 ### Path rules
 
 Only needed when an app sees the same file at a **different path** than Marquee does (typical with Docker

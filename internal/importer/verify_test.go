@@ -113,6 +113,22 @@ func TestMovieNameCheckReadsTheFirstNameThatIsTheFilm(t *testing.T) {
 			file: "springopenmovie.mp4", release: "Spring.1999.1080p.WEB-DL.x264-Blender", reason: "Wrong year: this is from 1999"},
 		{name: "a year one off is fine", movie: spring, folder: "Spring.2020.1080p.WEB-DL.x264-Blender",
 			file: "springopenmovie.mp4", release: "Spring.2020.1080p.WEB-DL.x264-Blender", want: "Spring (2019)/Spring (2019) WEBDL-1080p.mp4"},
+		// Sprite Fright premiered in 2021. The catalog now keeps that year (the first
+		// release, not TMDB's primary date of 2024), so its own 2021 file is accepted.
+		// The check is still one year either way and no wider: a title that was stored
+		// with the later year turns the same file down.
+		{name: "sprite fright's own year", movie: sprite, folder: spriteRel,
+			file: "Sprite Fright - Open Movie by Blender Studio-804p.mp4", release: spriteRel,
+			want: "Sprite Fright (2021)/Sprite Fright (2021) WEBDL-1080p.mp4"},
+		{name: "sprite fright stored with the later year", movie: movieDetail("Sprite Fright", 2024), folder: spriteRel,
+			file: "Sprite Fright - Open Movie by Blender Studio-804p.mp4", release: spriteRel,
+			reason: "Wrong year: this is from 2021, you want the 2024 one"},
+		{name: "a year one later is fine", movie: movieDetail("Sprite Fright", 2022), folder: spriteRel,
+			file: "Sprite Fright - Open Movie by Blender Studio-804p.mp4", release: spriteRel,
+			want: "Sprite Fright (2022)/Sprite Fright (2022) WEBDL-1080p.mp4"},
+		{name: "two years off is not", movie: movieDetail("Sprite Fright", 2023), folder: spriteRel,
+			file: "Sprite Fright - Open Movie by Blender Studio-804p.mp4", release: spriteRel,
+			reason: "Wrong year: this is from 2021, you want the 2023 one"},
 		{name: "a folder that names another title does not give the year", movie: charge, folder: "Extras 2005",
 			file: "Charge - Blender Open Movie 1608p.mp4", release: chargeRel, want: "Charge (2022)/Charge (2022) WEBDL-2160p.mp4"},
 	}

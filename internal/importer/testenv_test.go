@@ -440,6 +440,7 @@ func (r *rig) withImporter(mod ...func(*Deps)) *rig {
 	r.imp = New(r.db, deps, Options{Logger: quietLog(), Hub: r.hub, Now: r.now, SearchDelay: 30 * time.Millisecond})
 	r.t.Cleanup(r.imp.Close)
 	r.dl.SetCompletedHandler(r.imp)
+	r.dl.SetStalledHandler(r.imp)
 	return r
 }
 

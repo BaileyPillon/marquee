@@ -84,3 +84,12 @@ type Searcher interface {
 type CompletedHandler interface {
 	OnCompleted(ctx context.Context, downloadID int64)
 }
+
+// StalledHandler is implemented by the importer, which owns the blocklist, the
+// search and the title's history: called once when the downloads module gives up
+// on a download that stopped making progress. The download is already marked
+// failed (with reason) and, when removedFromClient, gone from its client. The
+// handler blocklists the release, makes the search forget it and searches again.
+type StalledHandler interface {
+	OnStalled(ctx context.Context, downloadID int64, reason string, removedFromClient bool)
+}

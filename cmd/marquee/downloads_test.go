@@ -17,6 +17,7 @@ import (
 	"github.com/BaileyPillon/marquee/internal/core/secrets"
 	"github.com/BaileyPillon/marquee/internal/downloads"
 	"github.com/BaileyPillon/marquee/internal/grab"
+	"github.com/BaileyPillon/marquee/internal/settings"
 )
 
 func TestDownloadsPollJobIsRegisteredAndIsAGrabber(t *testing.T) {
@@ -34,7 +35,7 @@ func TestDownloadsPollJobIsRegisteredAndIsAGrabber(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	svc := newDownloads(d, events.NewHub(quiet), outbound.New("test", outbound.Options{Logger: quiet}), box, quiet)
+	svc := newDownloads(d, events.NewHub(quiet), outbound.New("test", outbound.Options{Logger: quiet}), box, settings.New(d, box), quiet)
 
 	// What the search service will be handed is a grab.Grabber backed by the service.
 	var g grab.Grabber = downloadGrabber(svc)

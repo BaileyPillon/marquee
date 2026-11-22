@@ -64,6 +64,8 @@ func TestTextForEveryEvent(t *testing.T) {
 		{"failed", Failed, map[string]any{"reason": "No usable media files", "blocklisted": true, "searchingAgain": true},
 			"Import failed: No usable media files · release blocklisted · searching again"},
 		{"failed bare", Failed, map[string]any{}, "Import failed"},
+		{"stalled", Failed, map[string]any{"stalled": true, "reason": "Stuck at 99.97% for 30 minutes. The source can't finish it.", "blocklisted": true, "searchingAgain": true},
+			"Download stalled: Stuck at 99.97% for 30 minutes. The source can't finish it. · release blocklisted · searching again"},
 
 		{"renamed", Renamed, map[string]any{"from": "a.mkv", "to": "A (1999) Bluray-1080p.mkv"}, "Renamed a.mkv to A (1999) Bluray-1080p.mkv"},
 		{"renamed bare", Renamed, map[string]any{}, "Renamed a file"},

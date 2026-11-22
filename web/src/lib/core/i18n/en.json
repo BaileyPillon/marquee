@@ -1268,5 +1268,17 @@
   "album.sent": "Sent to your download app: {release}.",
   "album.nothing": "Nothing good enough was found yet.",
   "album.failed": "Couldn't search for that album. Try again.",
-  "album.notMonitored": "Not monitored"
+  "album.notMonitored": "Not monitored",
+  "apps.stall.heading": "Downloads that get stuck",
+  "apps.stall.intro": "Some downloads never finish, for example a torrent whose files changed after it was made. Marquee can give up on one, blocklist that release and look for another.",
+  "apps.stall.label": "Give up on a download that makes no progress for",
+  "apps.stall.unit": "{n, plural, one {minute} other {minutes}}",
+  "apps.stall.help": "Type 0 to never give up. A download that is paused or waiting in the app's queue is never given up on.",
+  "apps.stall.remove": "Remove it from the download app",
+  "apps.stall.removeHelp": "Also deletes what it had downloaded. Turn this off to keep the files in the app.",
+  "apps.stall.save": "Save",
+  "apps.stall.saving": "Saving…",
+  "apps.stall.saved": "Saved.",
+  "apps.stall.saveFailed": "Couldn't save that. Try again.",
+  "apps.stall.error.minutes": "Type a whole number of minutes from 0 to {max}."
 }

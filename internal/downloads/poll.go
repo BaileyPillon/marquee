@@ -25,8 +25,9 @@ func (s *Service) PollJob(ctx context.Context) error {
 // Poll reads the category of every enabled client and brings the downloads
 // table up to date: progress, speed, ETA and state; a transition to finished
 // stamps completed_at, publishes an event and tells the CompletedHandler once;
-// a client error state marks the download failed; a download missing from its
-// client for two polls in a row is marked removed.
+// a client error state marks the download failed; a download that has gained no
+// progress for the "downloads" setting stallMinutes is given up on (see stall.go);
+// a download missing from its client for two polls in a row is marked removed.
 //
 // A client that does not answer is skipped (and its error recorded); nothing
 // is marked removed because of a failed read.
@@ -39,11 +40,12 @@ func (s *Service) Poll(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	cfg := s.settings(ctx)
 	for _, c := range clients {
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		s.pollClient(ctx, c)
+		s.pollClient(ctx, c, cfg)
 	}
 	busy, err := s.store.anyBusy(ctx)
 	if err != nil {
@@ -53,7 +55,7 @@ func (s *Service) Poll(ctx context.Context) error {
 	return nil
 }
 
-func (s *Service) pollClient(ctx context.Context, c clientRow) {
+func (s *Service) pollClient(ctx context.Context, c clientRow, cfg Settings) {
 	tracked, err := s.store.trackedFor(ctx, c.ID)
 	if err != nil {
 		s.log.Warn("downloads: cannot read tracked downloads", "client", c.ID, "err", err)
@@ -93,7 +95,7 @@ func (s *Service) pollClient(ctx context.Context, c clientRow) {
 			continue
 		}
 		delete(s.misses, d.ID)
-		if changed := s.apply(ctx, d, it); changed != nil {
+		if changed := s.apply(ctx, d, it, cfg); changed != nil {
 			progress = append(progress, changed)
 		}
 	}
@@ -122,7 +124,7 @@ func (s *Service) missing(ctx context.Context, d Download) {
 
 // apply writes what the client says about one download. It returns a progress
 // entry for the "progress" event when something changed, nil otherwise.
-func (s *Service) apply(ctx context.Context, d Download, it Item) map[string]any {
+func (s *Service) apply(ctx context.Context, d Download, it Item, cfg Settings) map[string]any {
 	now := s.now()
 	switch {
 	case it.Finished:
@@ -166,13 +168,22 @@ func (s *Service) apply(ctx context.Context, d Download, it Item) map[string]any
 	if state == "" || !inList(activeStates, state) {
 		state = StateDownloading
 	}
+	// The stall clock starts over when the download gains progress and when it
+	// starts or resumes (it leaves queued or paused): waiting is not stalling.
+	moved := it.Progress > d.Progress || (!stallEligible(d.State) && stallEligible(state))
+	if !moved {
+		if reason, stuck := s.stallReason(d, it, state, cfg); stuck {
+			s.giveUp(ctx, d, it, reason, cfg)
+			return nil
+		}
+	}
 	if state == d.State && it.Progress == d.Progress && it.SpeedBps == d.SpeedBps && it.ETA == d.ETA &&
 		(it.Size == 0 || it.Size == d.Size) {
 		return nil // nothing moved: no write, no event
 	}
 	claimed, err := s.store.update(ctx, d.ID, activeStates, dlUpdate{
 		State: state, Progress: it.Progress, SpeedBps: it.SpeedBps, ETA: it.ETA, Size: it.Size,
-		SavePath: it.SavePath, ContentPath: "",
+		SavePath: it.SavePath, ContentPath: "", Moved: moved,
 	}, now)
 	if err != nil {
 		s.log.Warn("downloads: cannot update a download", "id", d.ID, "err", err)

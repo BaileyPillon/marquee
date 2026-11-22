@@ -255,7 +255,7 @@ func newExtrasRig(t *testing.T) *extrasRig {
 	rig.reqs = newRequests(d, hub, rig.cat, lib, rig.cfg, log)
 	t.Cleanup(rig.reqs.Close)
 	hc := outbound.New("test", outbound.Options{Logger: log, MaxRetries: -1, HostRPS: 100000, HostBurst: 100000})
-	dl := newDownloads(d, hub, hc, box, log)
+	dl := newDownloads(d, hub, hc, box, rig.cfg, log)
 
 	rig.x = newExtras(extrasDeps{
 		DB: d, Hub: hub, HTTP: hc, Box: box, Settings: rig.cfg, Accounts: rig.acc,

@@ -70,6 +70,7 @@ secret is kept; clear the field to remove it.
 | What | How often |
 |---|---|
 | Watch download apps for progress | every 5 seconds while something is downloading, every minute when idle |
+| Give up on a download that makes no progress | after 30 minutes without progress (you can change this or turn it off in Settings, Connections, Download apps) |
 | Look at the RSS feed of each source for new releases | every 15 minutes |
 | Check Plex watchlists (if linked) | every 15 minutes |
 | Look for finished downloads no one has imported | every 2 minutes |

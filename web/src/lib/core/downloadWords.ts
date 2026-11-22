@@ -24,11 +24,22 @@ export function stateText(state: DownloadState): string {
   }
 }
 
+/**
+ * "62%", "99.97%". From 99% up it shows two decimals and never rounds up to 100%: a download stuck
+ * at 99.97% is not done, and "stalled 100%" hides that it never finished.
+ */
+export function percentText(progress: number): string {
+  const p = Math.min(Math.max(progress, 0), 1) * 100;
+  if (p >= 100) return '100%';
+  if (p >= 99) return `${(Math.floor(p * 100 + 1e-6) / 100).toFixed(2)}%`;
+  return `${Math.round(p)}%`;
+}
+
 /** "62% · 14.2 MB/s · 6 min left · qBittorrent". */
 export function statsOf(d: DownloadView): string {
   const live = d.state === 'downloading' || d.state === 'stalled';
   return [
-    `${Math.round(d.progress * 100)}%`,
+    percentText(d.progress),
     live && d.speedBps > 0 ? formatSpeed(d.speedBps) : '',
     live ? formatEta(d.etaSeconds) : '',
     d.client.name,

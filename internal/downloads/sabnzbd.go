@@ -291,6 +291,7 @@ func (h sabHistorySlot) item() Item {
 		it.State = StateDownloading
 		it.Progress = 0.99
 		it.Done = it.Size
+		it.Working = true // the progress is a fixed 0.99; unpacking a big post can take hours
 	}
 	return it
 }

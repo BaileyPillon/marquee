@@ -1,7 +1,7 @@
 // Downloads and the download apps ("clients"): `internal/web/api_downloads.go`, `internal/downloads`.
 // Field names follow the Go structs exactly.
 import { del, getJSON, postJSON, putJSON } from './api';
-import { query, type ApiKind } from './catalog';
+import { getSettings, putSettings, query, type ApiKind } from './catalog';
 
 /** queued -> downloading (or paused, stalled) -> completed -> importing -> imported; or failed, removed. */
 export type DownloadState =
@@ -192,4 +192,36 @@ export function deleteClient(id: number): Promise<void> {
 /** Always answers 200: `ok` says whether the app answered, `error` says why not. */
 export function testClient(id: number): Promise<TestResult> {
   return postJSON<TestResult>(`clients/${id}/test`, undefined, undefined, 30_000);
+}
+
+/* ------------------------------------------------------------------ when to give up */
+
+/** The `downloads` settings section: what Marquee does with a download that stops making progress. */
+export interface DownloadSettings {
+  /** Minutes without progress before Marquee gives up on a download; 0 never gives up. */
+  stallMinutes: number;
+  /** Also remove a download it gave up on from the download app, with what it had downloaded. */
+  removeStalled: boolean;
+}
+
+export const DEFAULT_DOWNLOAD_SETTINGS: DownloadSettings = { stallMinutes: 30, removeStalled: true };
+
+/** The longest wait the server takes: a week. */
+export const MAX_STALL_MINUTES = 7 * 24 * 60;
+
+/** Read the `downloads` section as the form uses it: whatever the owner never set takes its default. */
+export async function loadDownloadSettings(signal?: AbortSignal): Promise<DownloadSettings> {
+  const v = (await getSettings('downloads', signal)).value;
+  const d = DEFAULT_DOWNLOAD_SETTINGS;
+  const minutes = v['stallMinutes'];
+  const remove = v['removeStalled'];
+  return {
+    stallMinutes: typeof minutes === 'number' && Number.isFinite(minutes) ? Math.round(minutes) : d.stallMinutes,
+    removeStalled: typeof remove === 'boolean' ? remove : d.removeStalled,
+  };
+}
+
+export async function saveDownloadSettings(s: DownloadSettings): Promise<DownloadSettings> {
+  await putSettings('downloads', { stallMinutes: s.stallMinutes, removeStalled: s.removeStalled });
+  return loadDownloadSettings();
 }

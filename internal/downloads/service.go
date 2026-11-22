@@ -33,6 +33,9 @@ type Options struct {
 	// Adapters builds the adapter for a client. Tests replace it; the default
 	// is NewAdapter.
 	Adapters AdapterFactory
+	// Settings is where the "downloads" section is read from (when to give up on
+	// a stalled download). Optional: without it the defaults hold.
+	Settings SettingsReader
 	// Now is a test hook.
 	Now func() time.Time
 }
@@ -45,6 +48,7 @@ type Service struct {
 	hc      *outbound.Client
 	box     *secrets.Box
 	factory AdapterFactory
+	cfg     SettingsReader
 	now     func() time.Time
 
 	adMu     sync.Mutex
@@ -52,6 +56,7 @@ type Service struct {
 
 	handlerMu sync.RWMutex
 	handler   grab.CompletedHandler
+	stalled   grab.StalledHandler
 
 	// Polling state. pollMu keeps polls from overlapping.
 	pollMu   sync.Mutex
@@ -80,7 +85,7 @@ func NewService(d *sql.DB, opts Options) *Service {
 	}
 	s := &Service{
 		store: NewStore(d), log: opts.Logger, hub: opts.Hub, hc: opts.HTTP, box: opts.Box,
-		factory: opts.Adapters, now: opts.Now,
+		factory: opts.Adapters, cfg: opts.Settings, now: opts.Now,
 		adapters: map[int64]adapterEntry{}, misses: map[int64]int{},
 	}
 	s.active.Store(true) // the first tick after a start looks at once

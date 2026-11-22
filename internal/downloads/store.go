@@ -275,11 +275,16 @@ type Download struct {
 	// import is putting the files, set once the destination is known.
 	ImportStep   string
 	ImportTarget string
+	// ProgressChangedAt is when the download last gained progress (or started, or
+	// was resumed). The poll gives up on a download that has not moved for the
+	// "downloads" setting stallMinutes.
+	ProgressChangedAt time.Time
 }
 
 const downloadCols = `d.id, d.client_id, d.client_ref, d.protocol, d.title_id, d.copy_id, d.kind, d.quality,
 	d.episode_ids, d.release_title, d.indexer_id, d.guid, d.size, d.state, d.progress, d.speed_bps, d.eta_seconds,
-	d.save_path, d.content_path, d.error, d.created_at, d.updated_at, d.completed_at, d.import_step, d.import_target`
+	d.save_path, d.content_path, d.error, d.created_at, d.updated_at, d.completed_at, d.import_step, d.import_target,
+	d.progress_changed_at`
 
 func scanDownload(s scanner, extra ...any) (Download, error) {
 	var (
@@ -288,10 +293,12 @@ func scanDownload(s scanner, extra ...any) (Download, error) {
 		episodes          string
 		created, updated  string
 		completed         sql.NullString
+		progressAt        string
 	)
 	dest := append([]any{&d.ID, &d.ClientID, &d.ClientRef, &d.Protocol, &d.TitleID, &copyID, &d.Kind, &d.Quality,
 		&episodes, &d.ReleaseTitle, &indexerID, &d.GUID, &d.Size, &d.State, &d.Progress, &d.SpeedBps, &d.ETA,
-		&d.SavePath, &d.ContentPath, &d.Error, &created, &updated, &completed, &d.ImportStep, &d.ImportTarget}, extra...)
+		&d.SavePath, &d.ContentPath, &d.Error, &created, &updated, &completed, &d.ImportStep, &d.ImportTarget,
+		&progressAt}, extra...)
 	if err := s.Scan(dest...); err != nil {
 		return Download{}, err
 	}
@@ -307,6 +314,13 @@ func scanDownload(s scanner, extra ...any) (Download, error) {
 		return Download{}, err
 	}
 	if d.CompletedAt, err = parseOptTS(completed); err != nil {
+		return Download{}, err
+	}
+	// The migration fills this in; a row that somehow has none counts from its
+	// last update rather than from the dawn of time.
+	if progressAt == "" {
+		d.ProgressChangedAt = d.UpdatedAt
+	} else if d.ProgressChangedAt, err = db.ParseTS(progressAt); err != nil {
 		return Download{}, err
 	}
 	return d, nil
@@ -342,10 +356,10 @@ func (s *Store) insertDownload(ctx context.Context, d Download, now time.Time) (
 			UPDATE downloads SET protocol = ?, title_id = ?, copy_id = ?, kind = ?, quality = ?, episode_ids = ?,
 			       release_title = ?, indexer_id = ?, guid = ?, size = ?, state = ?, progress = 0, speed_bps = 0,
 			       eta_seconds = -1, save_path = '', content_path = '', error = '', created_at = ?, updated_at = ?,
-			       completed_at = NULL, import_step = '', import_target = ''
+			       completed_at = NULL, import_step = '', import_target = '', progress_changed_at = ?
 			WHERE id = ?`,
 			d.Protocol, d.TitleID, nullInt(d.CopyID), d.Kind, d.Quality, string(episodes),
-			d.ReleaseTitle, nullInt(d.IndexerID), d.GUID, d.Size, d.State, db.TS(now), db.TS(now), oldID)
+			d.ReleaseTitle, nullInt(d.IndexerID), d.GUID, d.Size, d.State, db.TS(now), db.TS(now), db.TS(now), oldID)
 		if err != nil {
 			return 0, false, err
 		}
@@ -356,10 +370,10 @@ func (s *Store) insertDownload(ctx context.Context, d Download, now time.Time) (
 
 	res, err := tx.ExecContext(ctx, `
 		INSERT INTO downloads (client_id, client_ref, protocol, title_id, copy_id, kind, quality, episode_ids,
-		                       release_title, indexer_id, guid, size, state, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		                       release_title, indexer_id, guid, size, state, created_at, updated_at, progress_changed_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		d.ClientID, d.ClientRef, d.Protocol, d.TitleID, nullInt(d.CopyID), d.Kind, d.Quality, string(episodes),
-		d.ReleaseTitle, nullInt(d.IndexerID), d.GUID, d.Size, d.State, db.TS(now), db.TS(now))
+		d.ReleaseTitle, nullInt(d.IndexerID), d.GUID, d.Size, d.State, db.TS(now), db.TS(now), db.TS(now))
 	if err != nil {
 		return 0, false, err
 	}
@@ -428,6 +442,9 @@ type dlUpdate struct {
 	ContentPath string // "" keeps what is stored
 	Error       string
 	Completed   bool // stamp completed_at
+	// Moved stamps progress_changed_at: the download gained progress, or started
+	// or resumed, so the stall clock starts over.
+	Moved bool
 }
 
 // update writes u to the download, but only while it is still in one of the
@@ -443,10 +460,11 @@ func (s *Store) update(ctx context.Context, id int64, from []string, u dlUpdate,
 		       size = CASE WHEN ? > 0 THEN ? ELSE size END,
 		       save_path = CASE WHEN ? != '' THEN ? ELSE save_path END,
 		       content_path = CASE WHEN ? != '' THEN ? ELSE content_path END,
-		       error = ?, updated_at = ?, completed_at = COALESCE(?, completed_at)
+		       error = ?, updated_at = ?, completed_at = COALESCE(?, completed_at),
+		       progress_changed_at = CASE WHEN ? THEN ? ELSE progress_changed_at END
 		WHERE id = ? AND state IN (`+placeholders(len(from))+`)`,
 		append([]any{u.State, u.Progress, u.SpeedBps, u.ETA, u.Size, u.Size, u.SavePath, u.SavePath,
-			u.ContentPath, u.ContentPath, u.Error, db.TS(now), completedAt, id}, anyList(from)...)...)
+			u.ContentPath, u.ContentPath, u.Error, db.TS(now), completedAt, boolInt(u.Moved), db.TS(now), id}, anyList(from)...)...)
 	if err != nil {
 		return false, err
 	}

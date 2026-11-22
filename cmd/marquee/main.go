@@ -141,8 +141,9 @@ func serve(ctx context.Context, log *slog.Logger, addr, configDir string) error 
 	defer reqs.Close()
 
 	// Download clients and download tracking. The search step will be given
-	// downloadGrabber(dl); the importer will be set with dl.SetCompletedHandler.
-	dl := newDownloads(mainDB, hub, hc, box, log)
+	// downloadGrabber(dl); the importer will be set with dl.SetCompletedHandler and
+	// dl.SetStalledHandler.
+	dl := newDownloads(mainDB, hub, hc, box, cfg, log)
 
 	// The history of each title (importer.go): asks, approvals and declines come
 	// from requests; "grabbed" is written by the grabber wrapper below.

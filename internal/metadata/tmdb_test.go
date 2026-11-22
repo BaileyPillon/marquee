@@ -2,6 +2,7 @@ package metadata
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"slices"
@@ -246,6 +247,69 @@ func TestTMDBMovieMapping(t *testing.T) {
 	}
 	if !slices.Equal(got, want) {
 		t.Errorf("people =\n%v\nwant\n%v", got, want)
+	}
+}
+
+// Sprite Fright premiered in October 2021, but TMDB's primary release date is
+// 2024-03-01. Release names carry 2021, so the catalog's year is the first one;
+// the primary date stays the date the calendar uses.
+func TestTMDBMovieYearIsTheFirstReleaseNotThePrimaryDate(t *testing.T) {
+	api := newFakeAPI(t, map[string]http.HandlerFunc{
+		"/movie/891761": fixture(t, "tmdb_movie_sprite_fright.json"),
+	})
+	e := newEnv(t, Options{TMDBURL: api.URL(), TMDBKey: fixedKey(v3Key)})
+	m, err := e.svc.TMDB.Movie(bg(), "891761")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m.Year != 2021 {
+		t.Errorf("year = %d, want 2021 (the 2021-10-29 premiere)", m.Year)
+	}
+	if m.ReleaseDate != "2024-03-01" {
+		t.Errorf("releaseDate = %q, want the primary date kept for the calendar", m.ReleaseDate)
+	}
+}
+
+func TestTMDBFirstReleaseYear(t *testing.T) {
+	entry := func(typ int, date string) map[string]any { return map[string]any{"type": typ, "release_date": date} }
+	movie := func(primary string, entries ...map[string]any) tmMovie {
+		raw := map[string]any{
+			"release_date": primary,
+			"release_dates": map[string]any{"results": []any{
+				map[string]any{"iso_3166_1": "US", "release_dates": entries},
+			}},
+		}
+		b, err := json.Marshal(raw)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var m tmMovie
+		if err := json.Unmarshal(b, &m); err != nil {
+			t.Fatal(err)
+		}
+		return m
+	}
+	for _, tc := range []struct {
+		name string
+		m    tmMovie
+		want int
+	}{
+		{"primary date only", movie("1927-01-10"), 1927},
+		{"an earlier premiere beats a later primary date", movie("2024-03-01", entry(1, "2021-10-29T00:00:00.000Z")), 2021},
+		{"every kind of release counts", movie("2024-03-01",
+			entry(5, "2023-01-01T00:00:00.000Z"), entry(4, "2022-01-01T00:00:00.000Z"),
+			entry(3, "2021-06-01T00:00:00.000Z"), entry(2, "2020-06-01T00:00:00.000Z")), 2020},
+		{"a later entry never moves the year", movie("2019-05-05", entry(3, "2021-06-01T00:00:00.000Z")), 2019},
+		{"television is not a first release", movie("2024-03-01", entry(6, "2015-01-01T00:00:00.000Z")), 2024},
+		{"an unknown type is left out", movie("2024-03-01", entry(0, "2015-01-01T00:00:00.000Z"), entry(9, "2015-01-01T00:00:00.000Z")), 2024},
+		{"a placeholder date is left out", movie("2024-03-01", entry(1, "0001-01-01T00:00:00.000Z")), 2024},
+		{"an entry with no date is left out", movie("2024-03-01", entry(1, "")), 2024},
+		{"no primary date: the earliest entry", movie("", entry(4, "2022-01-01T00:00:00.000Z"), entry(1, "2021-10-29T00:00:00.000Z")), 2021},
+		{"no dates at all", movie(""), 0},
+	} {
+		if got := tc.m.firstReleaseYear(); got != tc.want {
+			t.Errorf("%s: year = %d, want %d", tc.name, got, tc.want)
+		}
 	}
 }
 

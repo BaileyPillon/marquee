@@ -133,6 +133,9 @@ func newImportSide(mainDB *sql.DB, hub *events.Hub, hc *outbound.Client, box *se
 		History:   hist,
 	}, importer.Options{Logger: log, Hub: hub})
 	dl.SetCompletedHandler(imp)
+	// A download that stops making progress is failed by the downloads module; the
+	// importer blocklists the release and searches again, as for a bad import.
+	dl.SetStalledHandler(imp)
 	return &importSide{Servers: servers, Importer: imp}
 }
 

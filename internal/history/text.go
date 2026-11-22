@@ -55,6 +55,9 @@ func Text(event string, detail json.RawMessage) string {
 		return upgradedText(d)
 	case Failed:
 		line := "Import failed"
+		if boolOf(d, "stalled") { // the download gave up before there was anything to import
+			line = "Download stalled"
+		}
 		if reason := str(d, "reason"); reason != "" {
 			line += ": " + reason
 		}

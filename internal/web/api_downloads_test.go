@@ -369,6 +369,38 @@ func TestClientAPIMasksSecretsEverywhere(t *testing.T) {
 	}
 }
 
+// The "downloads" section says when to give up on a download that makes no
+// progress. Mistakes are refused and nothing is stored.
+func TestDownloadSettingsAreCheckedBeforeTheyAreStored(t *testing.T) {
+	a := newDLApp(t)
+	owner := a.owner()
+
+	r := owner.do("PUT", "/api/v1/settings/downloads", map[string]any{"stallMinutes": 45, "removeStalled": false})
+	if r.Status != 200 {
+		t.Fatalf("PUT = %d %s", r.Status, r.Body)
+	}
+	if v := obj(t, r.JSON(t), "value"); v["stallMinutes"] != float64(45) || v["removeStalled"] != false {
+		t.Errorf("stored = %v", v)
+	}
+	// 0 is allowed: it turns the check off.
+	if r := owner.do("PUT", "/api/v1/settings/downloads", map[string]any{"stallMinutes": 0, "removeStalled": true}); r.Status != 200 ||
+		obj(t, r.JSON(t), "value")["stallMinutes"] != float64(0) {
+		t.Errorf("0 = %d %s", r.Status, r.Body)
+	}
+	owner.do("PUT", "/api/v1/settings/downloads", map[string]any{"stallMinutes": 45, "removeStalled": false})
+	for name, body := range map[string]map[string]any{
+		"negative": {"stallMinutes": -1}, "fraction": {"stallMinutes": 2.5}, "text": {"stallMinutes": "30"},
+		"too long": {"stallMinutes": 100000}, "flag": {"removeStalled": "yes"},
+	} {
+		if r := owner.do("PUT", "/api/v1/settings/downloads", body); r.Status != 400 || r.errCode(t) != "invalid_request" {
+			t.Errorf("%s = %d %s", name, r.Status, r.Body)
+		}
+	}
+	if got := obj(t, owner.do("GET", "/api/v1/settings/downloads", nil).JSON(t), "value"); got["stallMinutes"] != float64(45) || got["removeStalled"] != false {
+		t.Errorf("a refused save changed the section: %v", got)
+	}
+}
+
 func TestClientAPIErrors(t *testing.T) {
 	a := newDLApp(t)
 	owner := a.owner()

@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/BaileyPillon/marquee/internal/downloads"
 	"github.com/BaileyPillon/marquee/internal/requests"
 )
 
@@ -192,11 +193,23 @@ func normalizeRequestsSection(in map[string]any) (map[string]any, error) {
 	return out, err
 }
 
+// normalizeDownloadsSection checks the download settings (when to give up on a
+// download that makes no progress).
+func normalizeDownloadsSection(in map[string]any) (map[string]any, error) {
+	out, err := downloads.NormalizeSettings(in)
+	var inv *downloads.InvalidError
+	if errors.As(err, &inv) {
+		return nil, &sectionError{code: "invalid_request", message: inv.Message}
+	}
+	return out, err
+}
+
 // normalizers check and tidy a settings section before it is stored. A section with
 // none is stored as it came.
 var normalizers = map[string]func(map[string]any) (map[string]any, error){
-	ServerSection:            normalizeServerSection,
-	requests.SettingsSection: normalizeRequestsSection,
+	ServerSection:             normalizeServerSection,
+	requests.SettingsSection:  normalizeRequestsSection,
+	downloads.SettingsSection: normalizeDownloadsSection,
 }
 
 // ---- reading it back -------------------------------------------------------------------

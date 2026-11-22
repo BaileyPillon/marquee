@@ -24,6 +24,7 @@
   import { t } from '../../lib/core/i18n';
   import type { PanelRow } from '../../lib/core/views';
   import ConnectionPanel from './ConnectionPanel.svelte';
+  import StallSettings from './StallSettings.svelte';
 
   interface Props {
     /** Open the add dialog for this kind at once (a link from Downloads or a release search). */
@@ -259,7 +260,6 @@
     title={t('settings.panel.apps')}
     {rows}
     empty={t('apps.empty')}
-    note={t('apps.note')}
     anchor="download-apps"
   >
     {#snippet action()}
@@ -268,6 +268,8 @@
         {t('apps.add')}
       </Button>
     {/snippet}
+    <p class="note">{t('apps.note')}</p>
+    <StallSettings {onnote} />
   </ConnectionPanel>
 {/if}
 
@@ -360,5 +362,11 @@
     display: flex;
     flex-direction: column;
     gap: 10px;
+  }
+  .note {
+    margin-top: 10px;
+    font-size: 13px;
+    line-height: 18px;
+    color: var(--muted);
   }
 </style>

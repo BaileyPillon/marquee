@@ -146,8 +146,8 @@ type MovieInfo struct {
 	IMDbID        string   `json:"imdbId"`
 	Title         string   `json:"title"`
 	OriginalTitle string   `json:"originalTitle"`
-	Year          int      `json:"year"`
-	ReleaseDate   string   `json:"releaseDate"`
+	Year          int      `json:"year"`        // the year of the first release (a premiere abroad counts), not the primary date's
+	ReleaseDate   string   `json:"releaseDate"` // the provider's primary release date; the calendar uses it
 	Overview      string   `json:"overview"`
 	Tagline       string   `json:"tagline"`
 	RuntimeMin    int      `json:"runtimeMin"`

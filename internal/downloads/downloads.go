@@ -140,6 +140,9 @@ type Item struct {
 	ContentPath string
 	Finished    bool   // the download is complete (the client may still be seeding)
 	Error       string // plain words, set when State is StateFailed
+	// Working says the client has everything and is checking, repairing,
+	// unpacking or moving it. Its progress does not move then, which is no stall.
+	Working bool
 }
 
 // Adapter talks to one download client. Refs are the client's own ids:

@@ -140,6 +140,7 @@ type tmMovie struct {
 			Releases []struct {
 				Certification string `json:"certification"`
 				Type          int    `json:"type"`
+				ReleaseDate   string `json:"release_date"` // an ISO time such as 2021-10-29T00:00:00.000Z
 			} `json:"release_dates"`
 		} `json:"results"`
 	} `json:"release_dates"`
@@ -250,7 +251,7 @@ func (m tmMovie) info() *MovieInfo {
 	info := &MovieInfo{
 		TMDBID: m.ID, IMDbID: m.IMDbID,
 		Title: cleanText(m.Title), OriginalTitle: cleanText(m.OriginalTitle),
-		Year: year(m.ReleaseDate), ReleaseDate: m.ReleaseDate,
+		Year: m.firstReleaseYear(), ReleaseDate: m.ReleaseDate,
 		Overview: cleanText(m.Overview), Tagline: cleanText(m.Tagline),
 		Status:   movieStatus(m.Status),
 		Genres:   []string{},
@@ -298,6 +299,36 @@ func (m tmMovie) info() *MovieInfo {
 	info.Certification = m.usCertification()
 	info.TrailerKey = m.trailerKey()
 	return info
+}
+
+// earliestEntryYear is the oldest year a release_dates entry can plausibly carry.
+// TMDB has the odd placeholder ("0001-01-01") that must not become a film's year.
+const earliestEntryYear = 1870
+
+// firstReleaseYear is the year a film first came out: the earliest of the
+// primary release date and every dated premiere (1), limited theatrical (2),
+// theatrical (3), digital (4) or physical (5) release in any country. TMDB's
+// primary date is often a later wide release: "Sprite Fright" premiered in
+// October 2021 but its primary date is 2024. Release names carry the first
+// year, so that is the year the catalog keeps. TV and other release types (6)
+// are left out because they say nothing about when the film first came out.
+func (m tmMovie) firstReleaseYear() int {
+	first := year(m.ReleaseDate)
+	for _, res := range m.ReleaseDates.Results {
+		for _, r := range res.Releases {
+			if r.Type < 1 || r.Type > 5 {
+				continue
+			}
+			y := year(r.ReleaseDate)
+			if y < earliestEntryYear {
+				continue
+			}
+			if first == 0 || y < first {
+				first = y
+			}
+		}
+	}
+	return first
 }
 
 // usCertification picks the US rating of the theatrical release (type 3),
