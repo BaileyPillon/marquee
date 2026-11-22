@@ -109,12 +109,10 @@ ENV MARQUEE_CONFIG=/config \
 EXPOSE 6464
 VOLUME /config
 
-# There is no shell and no curl in this image, so a health check has to be a
-# subcommand of the binary itself. Marquee does not have one yet (see the
-# "marquee healthcheck" note in the M11 report). Until it does, there is none.
-# When it lands, replace the next line with:
-#   HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
-#     CMD ["/marquee", "healthcheck"]
-HEALTHCHECK NONE
+# There is no shell and no curl in this image, so the health check is a
+# subcommand of the binary itself: `marquee healthcheck` asks the running
+# server's /api/v1/health (on MARQUEE_ADDR, with any-host turned into 127.0.0.1)
+# and exits 0 only on HTTP 200 with status "ok". It never touches /config.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 CMD ["/marquee","healthcheck"]
 
 ENTRYPOINT ["/marquee"]

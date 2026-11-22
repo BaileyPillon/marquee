@@ -39,6 +39,12 @@ const (
 )
 
 func main() {
+	// "marquee healthcheck" is a probe of a running Marquee, not a start. It comes
+	// before flag parsing and serve() so it can never touch the config folder, the
+	// databases or the master key. See healthcheck.go.
+	if len(os.Args) > 1 && os.Args[1] == "healthcheck" {
+		os.Exit(runHealthcheck(os.Args[2:], os.Stdout, os.Stderr))
+	}
 	if err := run(os.Args[1:], os.Stderr); err != nil {
 		fmt.Fprintln(os.Stderr, "marquee:", err)
 		os.Exit(1)

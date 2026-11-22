@@ -71,8 +71,17 @@ services:
     # tmpfs:
     #   - /tmp
 
-    # No health check yet: the image has no shell or curl, so it needs a
-    # `marquee healthcheck` command inside the binary. See docs/install.md.
+    # The image has no shell or curl, so the check is a command inside the binary:
+    # `marquee healthcheck` asks http://127.0.0.1:<port>/api/v1/health from inside
+    # the container (the port comes from MARQUEE_ADDR) and exits 0 only on "ok".
+    # The image already has this same check built in; it is repeated here so you
+    # can see it and tune it. `docker ps` then shows (healthy) or (unhealthy).
+    healthcheck:
+      test: ["CMD", "/marquee", "healthcheck"]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
 
   # ---- Optional: qBittorrent ---------------------------------------------------
   # Marquee talks to qBittorrent's web interface. In Settings, add a download app

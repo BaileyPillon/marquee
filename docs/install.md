@@ -127,9 +127,16 @@ docker compose -f deploy/compose.yaml up -d
   The same thing on the command line is `docker run --user 1000:1000 ...`.
 - **Settings through environment.** The image sets `MARQUEE_CONFIG=/config` and `MARQUEE_ADDR=:6464`. See
   [configuration](configuration.md) for the rest.
-- **No health check yet.** There is no shell or `curl` in the image, so a Docker health check needs a
-  command built into the binary, which Marquee does not have yet. Meanwhile, `http://<host>:6464/api/v1/health`
-  answers with JSON and is easy to watch from outside (for example with Uptime Kuma).
+- **Health check.** There is no shell or `curl` in the image, so the check is a command built into the binary:
+  `marquee healthcheck`. The image runs it every 30 seconds (20 seconds of grace at start, 3 misses in a row
+  before it says unhealthy), so `docker ps` shows `(healthy)` or `(unhealthy)`. It asks
+  `http://127.0.0.1:6464/api/v1/health` from inside the container and passes only on HTTP 200 with
+  `"status":"ok"`; otherwise it exits 1 with one line saying why. It reads the port from `MARQUEE_ADDR` (or
+  `-addr host:port`), so it follows you if you change the port inside the container. Try it by hand with
+  `docker exec marquee /marquee healthcheck`. It never reads your config folder or keys. Outside Docker,
+  `http://<host>:6464/api/v1/health` answers with the same JSON and is easy to watch from outside (for example
+  with Uptime Kuma). To turn the image's check off, set `healthcheck: { disable: true }` in compose or
+  `--no-healthcheck` on `docker run`.
 - **Pin a version** (`ghcr.io/baileypillon/marquee:0.1.0`) once you are happy, so an update is a choice.
 
 To build the image yourself, from the repository root:

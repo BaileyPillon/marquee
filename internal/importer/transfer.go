@@ -57,6 +57,18 @@ func transfer(ctx context.Context, src, dest string, m Method) (mode string, err
 	}()
 
 	if m == MethodMove {
+		// dest may already be a hard link of src (an earlier import linked
+		// it). POSIX rename does nothing in that case and still reports
+		// success, which would leave the source behind, so drop the
+		// source name ourselves: the data is already at dest.
+		if si, err := os.Stat(src); err == nil {
+			if di, err := os.Stat(dest); err == nil && os.SameFile(si, di) {
+				if err := os.Remove(src); err != nil {
+					return "", fmt.Errorf("cannot remove %s: %w", filepath.Base(src), err)
+				}
+				return ModeMove, nil
+			}
+		}
 		if err := os.Rename(src, dest); err == nil {
 			return ModeMove, nil
 		}

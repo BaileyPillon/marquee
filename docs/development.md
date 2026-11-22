@@ -21,6 +21,7 @@ internal/          the program, one folder per module (see below)
   core/            config, database and migrations, job scheduler, outbound HTTP, secrets, events (SSE), path rules
 web/               the Svelte 5 + Vite + TypeScript page; web/embed.go embeds web/dist into the binary
 tools/precompress  brotli-compresses web/dist so the binary stays small
+tools/fakefeed     a tiny Torznab test server (Blender open movies) for end-to-end tests; not part of the program
 scripts/           build.ps1 and build.sh (release builds), dev.ps1, env.ps1, gen-api-doc.go
 deploy/            Dockerfile and compose.yaml
 docs/              these pages
