@@ -387,8 +387,10 @@ func (s *Service) startHydrate(id int64) bool {
 }
 
 // hydrateArtist reads the artist's albums and tracks and adds them to the
-// catalog row that AddAsync stored. The monitored flag is read now, so a
-// change made while the albums were loading is kept.
+// catalog row that AddAsync stored. The albums can take a long time to load,
+// and someone may switch the artist on or off meanwhile, so the monitored
+// flag is read again inside the transaction that writes the albums and
+// applied to them there: a change made during the load always wins.
 func (s *Service) hydrateArtist(ctx context.Context, id int64) error {
 	t, err := s.store.q().title(ctx, id)
 	if err != nil {
@@ -398,7 +400,21 @@ func (s *Service) hydrateArtist(ctx context.Context, id int64) error {
 	if err != nil {
 		return err
 	}
-	return s.store.inTx(ctx, func(q queries) error { return q.refresh(ctx, id, fresh, s.now()) })
+	return s.store.inTx(ctx, func(q queries) error {
+		if err := q.refresh(ctx, id, fresh, s.now()); err != nil {
+			return err
+		}
+		now, err := q.title(ctx, id)
+		if err != nil {
+			return err
+		}
+		if now.Monitored != t.Monitored {
+			// Re-apply the current choice to the albums just written
+			// (on means studio albums only, off means none).
+			return q.setMonitored(ctx, id, now.Monitored)
+		}
+		return nil
+	})
 }
 
 // cleanProviderID checks and normalises an id as the provider writes it.
