@@ -1,0 +1,94 @@
+{
+  "language": "ja",
+  "register": "です・ます調。ボタンは短い体言止めか動詞の終止形（「追加」「保存」）。",
+  "terms": {
+    "ask": {
+      "use": "リクエスト（名詞）、リクエストする（動詞）。画面の 'Requests' も「リクエスト」",
+      "avoid": [
+        "お願い",
+        "依頼"
+      ]
+    },
+    "approve": {
+      "use": "承認",
+      "avoid": []
+    },
+    "decline": {
+      "use": "却下",
+      "avoid": [
+        "拒否"
+      ]
+    },
+    "owner": {
+      "use": "オーナー",
+      "avoid": [
+        "所有者"
+      ]
+    },
+    "admin": {
+      "use": "管理者",
+      "avoid": [
+        "アドミン"
+      ]
+    },
+    "member": {
+      "use": "メンバー",
+      "avoid": []
+    },
+    "library": {
+      "use": "ライブラリ",
+      "avoid": [
+        "図書館",
+        "ライブラリー"
+      ]
+    },
+    "download app": {
+      "use": "ダウンロードアプリ",
+      "avoid": [
+        "ダウンロードクライアント"
+      ]
+    },
+    "media server": {
+      "use": "メディアサーバー",
+      "avoid": []
+    },
+    "source": {
+      "use": "ソース",
+      "avoid": [
+        "情報源"
+      ]
+    },
+    "release": {
+      "use": "リリース",
+      "avoid": []
+    },
+    "grab": {
+      "use": "取得",
+      "avoid": [
+        "つかむ"
+      ]
+    },
+    "4K copy": {
+      "use": "4Kコピー",
+      "avoid": [
+        "4Kバージョン"
+      ]
+    },
+    "watchlist": {
+      "use": "ウォッチリスト",
+      "avoid": [
+        "お気に入り"
+      ]
+    },
+    "monitor": {
+      "use": "監視",
+      "avoid": []
+    }
+  },
+  "notes": [
+    "Marquee は Marquee のまま。",
+    "数字と英字の前後に半角スペースは入れない。",
+    "句点は「。」。確認的な語尾は「しました」。"
+  ],
+  "sameAsEnglish": []
+}

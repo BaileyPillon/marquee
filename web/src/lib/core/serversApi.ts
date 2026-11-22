@@ -49,6 +49,8 @@ export interface HistoryItem {
   event: HistoryEvent | string;
   /** A sentence, or an object with the particulars (`{by, quality, reason, ...}`). */
   detail?: unknown;
+  /** The entry in plain English, written by the server ("Priya asked for 4K"). Older servers leave it out. */
+  text?: string;
 }
 
 export async function getTitleHistory(titleId: number, signal?: AbortSignal): Promise<HistoryItem[]> {
@@ -179,6 +181,8 @@ export interface PlexWatchlist {
   enabled: boolean;
   includeFriends: boolean;
   autoCreateMembers?: boolean;
+  /** The quality a watchlist item is asked for in. */
+  quality?: 'hd' | 'uhd';
   friends: PlexFriend[] | null;
   lastCheckedAt: string | null;
   lastError?: string;
@@ -221,6 +225,20 @@ export function checkWatchlists(): Promise<unknown> {
   return postJSON<unknown>('watchlists/check', undefined, undefined, 60_000);
 }
 
+/** How the Plex watchlists are read. A field left out keeps its value. */
+export interface PlexSettings {
+  enabled?: boolean;
+  includeFriends?: boolean;
+  autoCreateMembers?: boolean;
+  quality?: 'hd' | 'uhd';
+}
+
+/** Change how the watchlists are read (the owner). The answer is the status as it is now. */
+export async function savePlexSettings(input: PlexSettings): Promise<PlexWatchlist> {
+  const res = await putJSON<{ plex: PlexWatchlist }>('watchlists/plex', input);
+  return { ...res.plex, friends: res.plex?.friends ?? [] };
+}
+
 /* ------------------------------------------------------------------ API keys and MCP */
 
 export interface ApiKeyInfo {
@@ -254,6 +272,8 @@ export function revokeApiKey(id: number): Promise<void> {
 
 export interface McpTool {
   name: string;
+  /** One plain sentence for people. Older servers leave it out; `description` is written for Claude. */
+  summary?: string;
   description: string;
   /** The tick a key needs to use it (see, ask, downloads, ...). */
   scope: string;

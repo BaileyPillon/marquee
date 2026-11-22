@@ -270,11 +270,16 @@ type Download struct {
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
 	CompletedAt  *time.Time
+	// ImportStep is which step of its import the download is on (one of the Step
+	// constants), empty when it has not started one. ImportTarget is where the
+	// import is putting the files, set once the destination is known.
+	ImportStep   string
+	ImportTarget string
 }
 
 const downloadCols = `d.id, d.client_id, d.client_ref, d.protocol, d.title_id, d.copy_id, d.kind, d.quality,
 	d.episode_ids, d.release_title, d.indexer_id, d.guid, d.size, d.state, d.progress, d.speed_bps, d.eta_seconds,
-	d.save_path, d.content_path, d.error, d.created_at, d.updated_at, d.completed_at`
+	d.save_path, d.content_path, d.error, d.created_at, d.updated_at, d.completed_at, d.import_step, d.import_target`
 
 func scanDownload(s scanner, extra ...any) (Download, error) {
 	var (
@@ -286,7 +291,7 @@ func scanDownload(s scanner, extra ...any) (Download, error) {
 	)
 	dest := append([]any{&d.ID, &d.ClientID, &d.ClientRef, &d.Protocol, &d.TitleID, &copyID, &d.Kind, &d.Quality,
 		&episodes, &d.ReleaseTitle, &indexerID, &d.GUID, &d.Size, &d.State, &d.Progress, &d.SpeedBps, &d.ETA,
-		&d.SavePath, &d.ContentPath, &d.Error, &created, &updated, &completed}, extra...)
+		&d.SavePath, &d.ContentPath, &d.Error, &created, &updated, &completed, &d.ImportStep, &d.ImportTarget}, extra...)
 	if err := s.Scan(dest...); err != nil {
 		return Download{}, err
 	}
@@ -337,7 +342,7 @@ func (s *Store) insertDownload(ctx context.Context, d Download, now time.Time) (
 			UPDATE downloads SET protocol = ?, title_id = ?, copy_id = ?, kind = ?, quality = ?, episode_ids = ?,
 			       release_title = ?, indexer_id = ?, guid = ?, size = ?, state = ?, progress = 0, speed_bps = 0,
 			       eta_seconds = -1, save_path = '', content_path = '', error = '', created_at = ?, updated_at = ?,
-			       completed_at = NULL
+			       completed_at = NULL, import_step = '', import_target = ''
 			WHERE id = ?`,
 			d.Protocol, d.TitleID, nullInt(d.CopyID), d.Kind, d.Quality, string(episodes),
 			d.ReleaseTitle, nullInt(d.IndexerID), d.GUID, d.Size, d.State, db.TS(now), db.TS(now), oldID)
@@ -450,10 +455,17 @@ func (s *Store) update(ctx context.Context, id int64, from []string, u dlUpdate,
 }
 
 // setState moves a download to a state, whatever state it is in.
+//
+// The import step follows the state: a finished import is "done", an import that
+// starts (or is started again) has no step yet, and one that failed keeps the
+// step it was on, so the screen can say where it stopped.
 func (s *Store) setState(ctx context.Context, id int64, state, errText string, now time.Time) error {
-	res, err := s.db.ExecContext(ctx,
-		`UPDATE downloads SET state = ?, error = ?, speed_bps = 0, eta_seconds = -1, updated_at = ? WHERE id = ?`,
-		state, errText, db.TS(now), id)
+	res, err := s.db.ExecContext(ctx, `
+		UPDATE downloads SET state = ?, error = ?, speed_bps = 0, eta_seconds = -1, updated_at = ?,
+		       import_step = CASE WHEN ? = 'imported' THEN 'done' WHEN ? IN ('importing', 'completed') THEN '' ELSE import_step END,
+		       import_target = CASE WHEN ? IN ('importing', 'completed') THEN '' ELSE import_target END
+		WHERE id = ?`,
+		state, errText, db.TS(now), state, state, state, id)
 	if err != nil {
 		return err
 	}
@@ -461,6 +473,21 @@ func (s *Store) setState(ctx context.Context, id int64, state, errText string, n
 		return ErrNotFound
 	}
 	return nil
+}
+
+// setImportStep records which step an import is on and, when it is not empty,
+// where it is putting the files. It writes only while the download is importing,
+// so a late step cannot undo the final state.
+func (s *Store) setImportStep(ctx context.Context, id int64, step, target string, now time.Time) (bool, error) {
+	res, err := s.db.ExecContext(ctx, `
+		UPDATE downloads SET import_step = ?, import_target = CASE WHEN ? != '' THEN ? ELSE import_target END, updated_at = ?
+		WHERE id = ? AND state = 'importing'`,
+		step, target, target, db.TS(now), id)
+	if err != nil {
+		return false, err
+	}
+	n, _ := res.RowsAffected()
+	return n == 1, nil
 }
 
 // ---- views (downloads joined to the title and the client) --------------------
@@ -501,13 +528,34 @@ type View struct {
 	CreatedAt    time.Time  `json:"createdAt"`
 	UpdatedAt    time.Time  `json:"updatedAt"`
 	CompletedAt  *time.Time `json:"completedAt"`
+	// ImportStep is where the download's import is up to: checking, renaming,
+	// moving, rescanning or done; empty before an import starts.
+	ImportStep string `json:"importStep"`
+	// ImportTarget is the path the import is putting the files in. It is the
+	// owner's own folder layout, so it is only for the owner and admins; every
+	// route that returns a View is guarded that way.
+	ImportTarget string `json:"importTarget"`
+	// Outcome is how a finished download ended, for the history list: imported,
+	// upgraded (its import replaced a worse file), failed or removed. It is empty
+	// while the download is still going.
+	Outcome string `json:"outcome"`
 }
+
+// Outcomes of a download that is over.
+const (
+	OutcomeImported = "imported"
+	OutcomeUpgraded = "upgraded"
+	OutcomeFailed   = "failed"
+	OutcomeRemoved  = "removed"
+)
 
 // The join reads the titles table directly: a download shows its title's name,
 // year and poster, and a lightweight join is cheaper than asking the titles
-// module once per row. Nothing is written there.
+// module once per row. Nothing is written there. The same goes for the history
+// table, read only to see whether the download's import was an upgrade.
 const viewSelect = `SELECT ` + downloadCols + `,
-	c.name, c.kind, t.id, t.name, t.year, t.kind, t.poster_ref
+	c.name, c.kind, t.id, t.name, t.year, t.kind, t.poster_ref,
+	d.state = 'imported' AND EXISTS (SELECT 1 FROM history h WHERE h.download_id = d.id AND h.event = 'upgraded')
 	FROM downloads d
 	JOIN clients c ON c.id = d.client_id
 	LEFT JOIN titles t ON t.id = d.title_id`
@@ -518,8 +566,9 @@ func scanView(s scanner) (View, error) {
 		tid, tyear   sql.NullInt64
 		tname, tkind sql.NullString
 		tposter      sql.NullString
+		upgraded     bool
 	)
-	d, err := scanDownload(s, &cname, &ckind, &tid, &tname, &tyear, &tkind, &tposter)
+	d, err := scanDownload(s, &cname, &ckind, &tid, &tname, &tyear, &tkind, &tposter, &upgraded)
 	if err != nil {
 		return View{}, err
 	}
@@ -539,6 +588,9 @@ func scanView(s scanner) (View, error) {
 		CreatedAt:    d.CreatedAt,
 		UpdatedAt:    d.UpdatedAt,
 		CompletedAt:  d.CompletedAt,
+		ImportStep:   d.ImportStep,
+		ImportTarget: d.ImportTarget,
+		Outcome:      outcomeOf(d.State, upgraded),
 	}
 	if v.EpisodeIDs == nil {
 		v.EpisodeIDs = []int64{}
@@ -555,6 +607,22 @@ func scanView(s scanner) (View, error) {
 		v.Title = &TitleRef{ID: tid.Int64, Name: tname.String, Year: int(tyear.Int64), Kind: tkind.String, PosterRef: tposter.String}
 	}
 	return v, nil
+}
+
+// outcomeOf says how a download ended; "" while it has not.
+func outcomeOf(state string, upgraded bool) string {
+	switch state {
+	case StateImported:
+		if upgraded {
+			return OutcomeUpgraded
+		}
+		return OutcomeImported
+	case StateFailed:
+		return OutcomeFailed
+	case StateRemoved:
+		return OutcomeRemoved
+	}
+	return ""
 }
 
 func (s *Store) getView(ctx context.Context, id int64) (View, error) {

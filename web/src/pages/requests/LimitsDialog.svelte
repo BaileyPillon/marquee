@@ -1,5 +1,6 @@
 <script lang="ts">
   import Field from '../../lib/accounts/Field.svelte';
+  import CheckField from '../../lib/ui/CheckField.svelte';
   import FormSheet from '../../lib/ui/FormSheet.svelte';
   import SelectField from '../../lib/ui/SelectField.svelte';
   import { failureText } from '../../lib/core/catalog';
@@ -26,6 +27,9 @@
   let personId = $state('');
   let hd = $state('');
   let uhd = $state('');
+  // "Unlimited" is its own choice for a person: the box is then ignored and "unlimited" is sent.
+  let hdUnlimited = $state(false);
+  let uhdUnlimited = $state(false);
   let autoHd = $state<Flag>('default');
   let autoUhd = $state<Flag>('default');
   let busy = $state(false);
@@ -51,6 +55,8 @@
     const p = person;
     if (!p) return;
     const o = p.limits.overrides;
+    hdUnlimited = o.hdUnlimited === true;
+    uhdUnlimited = o.uhdUnlimited === true;
     hd = o.hdPerWeek === null ? '' : String(o.hdPerWeek);
     uhd = o.uhdPerWeek === null ? '' : String(o.uhdPerWeek);
     autoHd = flagOf(o.autoApproveHD);
@@ -82,10 +88,18 @@
 
   const toFlag = (f: Flag): boolean | null => (f === 'default' ? null : f === 'on');
 
+  /** What the empty box would mean: the default, in numbers or as "unlimited". */
+  function placeholderOf(limit: number | null | undefined, unlimited: boolean | undefined): string {
+    if (limit === undefined && unlimited === undefined) return '';
+    return limit === null || limit === undefined || unlimited
+      ? t('limits.placeholderUnlimited')
+      : t('limits.placeholder', { n: limit });
+  }
+
   async function save(): Promise<void> {
     if (!person || busy) return;
-    const hdValue = parseLimit(hd);
-    const uhdValue = parseLimit(uhd);
+    const hdValue = hdUnlimited ? 'unlimited' : parseLimit(hd);
+    const uhdValue = uhdUnlimited ? 'unlimited' : parseLimit(uhd);
     hdError = hdValue === undefined ? t('limits.error.number') : '';
     uhdError = uhdValue === undefined ? t('limits.error.number') : '';
     if (hdValue === undefined || uhdValue === undefined) return;
@@ -128,18 +142,22 @@
     bind:value={hd}
     inputmode="numeric"
     name="hd"
-    placeholder={defaults ? t('limits.placeholder', { n: defaults.hdPerWeek }) : ''}
+    disabled={hdUnlimited}
+    placeholder={defaults ? placeholderOf(defaults.hdPerWeek, defaults.hdUnlimited) : ''}
     help={t('limits.help')}
     error={hdError || undefined}
   />
+  <CheckField label={t('limits.unlimitedHd')} bind:checked={hdUnlimited} />
   <Field
     label={t('limits.uhd')}
     bind:value={uhd}
     inputmode="numeric"
     name="uhd"
-    placeholder={defaults ? t('limits.placeholder', { n: defaults.uhdPerWeek }) : ''}
+    disabled={uhdUnlimited}
+    placeholder={defaults ? placeholderOf(defaults.uhdPerWeek, defaults.uhdUnlimited) : ''}
     error={uhdError || undefined}
   />
+  <CheckField label={t('limits.unlimitedUhd')} bind:checked={uhdUnlimited} />
   <SelectField
     label={t('limits.autoHd')}
     bind:value={autoHd}

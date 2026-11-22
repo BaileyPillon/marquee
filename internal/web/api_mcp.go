@@ -3,7 +3,6 @@ package web
 import (
 	"context"
 	"net/http"
-	"strings"
 
 	"github.com/BaileyPillon/marquee/internal/accounts"
 )
@@ -40,13 +39,20 @@ func (s *Server) registerMCP(root, api *http.ServeMux) {
 // recentCalls: [{at, tool, userName, ok}]}. The owner sees everyone's recent
 // calls; everyone else sees their own.
 func (s *Server) handleMCPInfo(w http.ResponseWriter, r *http.Request, p *accounts.Principal) {
-	writeJSON(w, http.StatusOK, s.MCP.MCPInfo(r.Context(), p.User, requestOrigin(r)))
+	writeJSON(w, http.StatusOK, s.MCP.MCPInfo(r.Context(), p.User, s.publicOrigin(r)))
 }
 
-// requestOrigin is the scheme and host the caller used, for showing a URL.
-func requestOrigin(r *http.Request) string {
+// publicOrigin is the address to show people for reaching Marquee, for the MCP
+// address and any other absolute link: the "server" setting publicUrl when the
+// owner set one, otherwise the scheme and host the caller used. The scheme is
+// https only for a TLS connection or when a trusted proxy said so; the
+// X-Forwarded-Proto header of any other request is ignored.
+func (s *Server) publicOrigin(r *http.Request) string {
+	if u := s.runtime(r.Context()).publicURL; u != "" {
+		return u
+	}
 	scheme := "http"
-	if r.TLS != nil || strings.EqualFold(r.Header.Get("X-Forwarded-Proto"), "https") {
+	if requestIsHTTPS(r) {
 		scheme = "https"
 	}
 	return scheme + "://" + r.Host

@@ -45,6 +45,25 @@ const (
 	StateRemoved     = "removed" // gone from the client (or removed by the owner)
 )
 
+// Import steps. While a download is importing, the importer says which step it is
+// on; the Downloads screen shows them in order. A finished import is StepDone.
+const (
+	StepChecking   = "checking"   // reading the files and checking they are the title
+	StepRenaming   = "renaming"   // working out each file's name in the library
+	StepMoving     = "moving"     // linking, copying or moving the files into place
+	StepRescanning = "rescanning" // telling the media servers
+	StepDone       = "done"
+)
+
+// validStep reports whether s is a step SetImportStep takes. "" clears it.
+func validStep(s string) bool {
+	switch s {
+	case "", StepChecking, StepRenaming, StepMoving, StepRescanning, StepDone:
+		return true
+	}
+	return false
+}
+
 // Scheduling and events.
 const (
 	// Topic is the SSE topic every download event goes out on.

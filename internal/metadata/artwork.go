@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -51,7 +52,15 @@ func errNoImage() error { return &Error{Code: ErrNotFound.Code, Message: "No suc
 type artRule struct {
 	base  *url.URL
 	allow func(rest string) bool
+	// redirects are the only hosts a redirect from this provider may lead to (see
+	// outbound.WithRedirectHosts).
+	redirects []string
 }
+
+// CAARedirectHosts are where the Cover Art Archive sends a cover on to: its own
+// host, and the Internet Archive (archive.org and the servers below it, such as
+// ia800000.us.archive.org), which stores the images. Nothing else is followed.
+var CAARedirectHosts = []string{"coverartarchive.org", "archive.org", "*.archive.org"}
 
 var (
 	tmdbSize    = regexp.MustCompile(`^(?:[wh][0-9]{2,4}|original)$`)
@@ -148,7 +157,17 @@ func newArtwork(hc *outbound.Client, status *Status, log *slog.Logger, now func(
 			return nil, err
 		}
 		hc.SetHostLimit(u.Host, 30, 30) // image hosts are CDNs; a page shows many posters at once
-		a.rules[name] = artRule{base: u, allow: allow}
+		// An image may only be sent on to the provider's own host; the Cover Art
+		// Archive also hands covers over to the Internet Archive.
+		redirects := []string{u.Hostname()}
+		if name == "caa" {
+			for _, h := range CAARedirectHosts {
+				if !slices.Contains(redirects, h) {
+					redirects = append(redirects, h)
+				}
+			}
+		}
+		a.rules[name] = artRule{base: u, allow: allow, redirects: redirects}
 	}
 	return a, nil
 }
@@ -194,7 +213,8 @@ func (a *Artwork) Open(ctx context.Context, provider, rest string) (*ArtworkFile
 		return nil, errNoImage()
 	}
 
-	if err := a.singleFlight(ctx, name, func(ctx context.Context) error { return a.download(ctx, target, name) }); err != nil {
+	redirects := a.rules[provider].redirects
+	if err := a.singleFlight(ctx, name, func(ctx context.Context) error { return a.download(ctx, target, name, redirects) }); err != nil {
 		return nil, err
 	}
 	f, err := a.openCached(name)
@@ -288,9 +308,10 @@ func (a *Artwork) markMissing(name string) {
 	a.missing[name] = a.now().Add(negativeTTL)
 }
 
-// download fetches target into the cache.
-func (a *Artwork) download(ctx context.Context, target, name string) error {
-	resp, err := a.hc.Get(ctx, target)
+// download fetches target into the cache, following redirects only to the hosts
+// the provider's rule allows.
+func (a *Artwork) download(ctx context.Context, target, name string, redirects []string) error {
+	resp, err := a.hc.Get(ctx, target, outbound.WithRedirectHosts(redirects...))
 	if err != nil {
 		a.status.fail(ProviderArtwork, err)
 		return upstream("artwork", err)

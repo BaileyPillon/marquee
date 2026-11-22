@@ -23,6 +23,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/BaileyPillon/marquee/internal/core/events"
+	"github.com/BaileyPillon/marquee/internal/parse"
 )
 
 // Folder kinds (also the kind recorded on every file in the folder).
@@ -90,6 +91,21 @@ type Candidate struct {
 type TitleSource interface {
 	Candidates(ctx context.Context, kind string) ([]Candidate, error)
 	EpisodeID(ctx context.Context, titleID int64, season, number int) (int64, bool, error)
+}
+
+// AlbumInfo is one album of an artist with its tracks, as the catalog lists them.
+type AlbumInfo struct {
+	ID     int64
+	Name   string
+	Year   int
+	Tracks []parse.CatalogTrack
+}
+
+// AlbumSource is an optional extra of a TitleSource: the albums and tracks of an
+// artist. With it a scanned music file is matched to its track (files.track_id)
+// as well as to its artist.
+type AlbumSource interface {
+	Albums(ctx context.Context, titleID int64) ([]AlbumInfo, error)
 }
 
 // Folder is one watched folder.

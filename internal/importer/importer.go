@@ -85,6 +85,9 @@ var (
 type Downloads interface {
 	Download(ctx context.Context, id int64) (downloads.Download, error)
 	SetState(ctx context.Context, id int64, state, errText string) error
+	// SetImportStep says which step the import is on and where it is putting the
+	// files (see downloads.Step*).
+	SetImportStep(ctx context.Context, id int64, step, target string) error
 	Remove(ctx context.Context, id int64, deleteData bool) error
 	ClientPaths(ctx context.Context, clientID int64) (downloads.ClientPaths, error)
 	List(ctx context.Context, f downloads.ListFilter) ([]downloads.View, int, error)
@@ -101,6 +104,10 @@ type Library interface {
 	Files(ctx context.Context, f library.FileFilter) ([]library.File, int, error)
 	ImportFiles(ctx context.Context, folderID int64, files []library.ImportedFile) error
 	ForgetFiles(ctx context.Context, folderID int64, relPaths []string) error
+	// File and RenameFile are for renaming and deleting a file that is already in
+	// the library (files.go).
+	File(ctx context.Context, id int64) (library.File, error)
+	RenameFile(ctx context.Context, id int64, newRel string, mtime time.Time) error
 }
 
 // Profiles is the decide service's quality profiles.
@@ -122,6 +129,7 @@ type Requests interface {
 // Servers is the media-servers service.
 type Servers interface {
 	Notify(ctx context.Context, ev mediaservers.Event) []mediaservers.NotifyResult
+	NotifyRenamed(ctx context.Context, oldPaths, newPaths []string) []mediaservers.NotifyResult
 }
 
 // Searcher is the search service: look for a copy again, and forget what was
@@ -176,6 +184,10 @@ type Service struct {
 	firstRun bool
 	wg       sync.WaitGroup
 	work     sync.Mutex // one import at a time: they are all disk work
+
+	// afterHook is told which files an import added (SetAfterImport, hook.go);
+	// guarded by mu.
+	afterHook AfterImportHook
 
 	searchMu     sync.Mutex
 	searchTimers map[int64]*time.Timer

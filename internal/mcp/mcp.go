@@ -211,7 +211,10 @@ func (s *Server) Enabled(ctx context.Context) bool { return s.config(ctx).enable
 
 // ToolInfo is one tool as the settings screen lists it.
 type ToolInfo struct {
-	Name        string `json:"name"`
+	Name string `json:"name"`
+	// Summary is one plain sentence for people. Description is the long text Claude
+	// reads; the settings screen shows the summary.
+	Summary     string `json:"summary"`
 	Description string `json:"description"`
 	Scope       string `json:"scope"`
 }
@@ -233,7 +236,7 @@ func (s *Server) Info(ctx context.Context, user accounts.User, origin string) In
 	tools := []ToolInfo{}
 	for _, t := range s.tools {
 		if slices.Contains(allowed, t.Scope) {
-			tools = append(tools, ToolInfo{Name: t.Name, Description: t.Description, Scope: t.Scope})
+			tools = append(tools, ToolInfo{Name: t.Name, Summary: t.Summary, Description: t.Description, Scope: t.Scope})
 		}
 	}
 	var only int64

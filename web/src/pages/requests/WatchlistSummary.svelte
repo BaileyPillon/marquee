@@ -7,7 +7,7 @@
   import { isRouteMissing } from '../../lib/core/catalog';
   import { onEvent, onResync } from '../../lib/core/events';
   import { formatAgo } from '../../lib/core/format';
-  import { t } from '../../lib/core/i18n';
+  import { formatList, t } from '../../lib/core/i18n';
   import { checkWatchlists, getWatchlists, type PlexWatchlist } from '../../lib/core/serversApi';
 
   interface Props {
@@ -60,9 +60,7 @@
       : t('requests.watch.headlineNever', { n: linked.length });
   });
 
-  function list(names: string[]): string {
-    return new Intl.ListFormat(undefined, { style: 'long', type: 'conjunction' }).format(names);
-  }
+  const list = formatList;
 
   const detail = $derived.by(() => {
     if (!plex || !plex.linked) return t('requests.watch.linkHint');
@@ -70,14 +68,16 @@
     const parts: string[] = [];
     if (linked.length > 0) {
       parts.push(
-        t(linked.length === 1 ? 'requests.watch.linkedOne' : 'requests.watch.linkedMany', {
+        t('requests.watch.linked', {
+          n: linked.length,
           names: list(linked.map((f) => f.linkedUserName ?? f.username)),
         }),
       );
     }
     if (unlinked.length > 0) {
       parts.push(
-        t(unlinked.length === 1 ? 'requests.watch.unlinkedOne' : 'requests.watch.unlinkedMany', {
+        t('requests.watch.unlinked', {
+          n: unlinked.length,
           names: list(unlinked.map((f) => f.username)),
         }),
       );

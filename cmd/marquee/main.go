@@ -144,13 +144,20 @@ func serve(ctx context.Context, log *slog.Logger, addr, configDir string) error 
 
 	// Sources, quality profiles and release search (sources.go). The search is
 	// what an approved ask starts, and it sends its pick to the download client.
-	rf := newReleaseFinding(mainDB, hc, box, catalog, lib, reqs, recordedGrabber(downloadGrabber(dl), hist), log)
+	names := &indexerNames{} // the history says which source a release came from
+	rf := newReleaseFinding(mainDB, hc, box, catalog, lib, reqs, recordedGrabber(downloadGrabber(dl), hist, names.name), log)
+	names.set(rf.Sources)
 	reqs.SetSearcher(rf.Search)
 
 	// The importer and the media servers (importer.go): a finished download goes
 	// into the library, and Jellyfin, Emby and Plex are told.
 	imp := newImportSide(mainDB, hub, hc, box, dl, reqs, lib, catalog, rf, hist, log)
 	defer imp.Importer.Close()
+
+	// Music (music.go): tracks are matched to the catalog's, albums searched one by one.
+	// Subtitles (subtitles.go): looked for after each import and by a scheduled job.
+	wireMusic(lib, catalog, rf, reqs)
+	subs := newSubtitles(mainDB, hub, hc, cfg, lib, catalog, imp, log)
 
 	// Plex watchlists, the calendar and alerts (extras.go).
 	ex := newExtras(extrasDeps{DB: mainDB, Hub: hub, HTTP: hc, Box: box, Settings: cfg, Accounts: acc,
@@ -176,6 +183,9 @@ func serve(ctx context.Context, log *slog.Logger, addr, configDir string) error 
 	if err := registerImportJobs(sched, imp.Importer); err != nil {
 		return err
 	}
+	if err := registerSubtitlesJobs(sched, subs); err != nil {
+		return err
+	}
 	if err := ex.registerJobs(sched); err != nil {
 		return err
 	}
@@ -185,6 +195,13 @@ func serve(ctx context.Context, log *slog.Logger, addr, configDir string) error 
 	dist, err := fs.Sub(ui.Dist, "dist")
 	if err != nil {
 		return err
+	}
+	// A reverse proxy in front of Marquee is named in MARQUEE_TRUSTED_PROXIES (CIDR
+	// ranges or addresses, separated by commas); a typo stops the start instead of
+	// silently trusting nobody.
+	trustedProxies := web.SplitList(os.Getenv("MARQUEE_TRUSTED_PROXIES"))
+	if _, err := web.ParseProxyList(trustedProxies); err != nil {
+		return fmt.Errorf("MARQUEE_TRUSTED_PROXIES: %w", err)
 	}
 	// Claude's way in (mcp.go): /mcp, with per-key permissions; it can ask, never approve.
 	mcpSvc := newMCP(mainDB, version, acc, cfg, meta, catalog, reqs, dl, rf.Sources, log)
@@ -210,8 +227,15 @@ func serve(ctx context.Context, log *slog.Logger, addr, configDir string) error 
 		Watchlists:   ex.Watchlists,
 		Calendar:     ex.Calendar,
 		Alerts:       ex.Alerts,
+		Subtitles:    subs,
 		MCP:          mcpSvc,
 		UI:           dist,
+
+		// How Marquee is run: the scheduler, the config folder, and the reverse proxies
+		// whose X-Forwarded-For and X-Forwarded-Proto headers are believed.
+		Jobs:           sched,
+		ConfigDir:      absConfig,
+		TrustedProxies: trustedProxies,
 	})
 
 	ln, err := net.Listen("tcp", addr)

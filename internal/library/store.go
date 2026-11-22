@@ -142,12 +142,13 @@ type indexRow struct {
 	MTime   int64
 	State   string
 	Missing bool
+	NoTrack bool // track_id is not set
 }
 
 // FileIndex loads every file row of a folder, keyed by relative path.
 func (s *Store) FileIndex(ctx context.Context, folderID int64) (map[string]indexRow, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT id, rel_path, size, mtime, match_state, missing_since IS NOT NULL FROM files WHERE folder_id = ?`, folderID)
+		`SELECT id, rel_path, size, mtime, match_state, missing_since IS NOT NULL, track_id IS NULL FROM files WHERE folder_id = ?`, folderID)
 	if err != nil {
 		return nil, err
 	}
@@ -158,7 +159,7 @@ func (s *Store) FileIndex(ctx context.Context, folderID int64) (map[string]index
 			r   indexRow
 			rel string
 		)
-		if err := rows.Scan(&r.ID, &rel, &r.Size, &r.MTime, &r.State, &r.Missing); err != nil {
+		if err := rows.Scan(&r.ID, &rel, &r.Size, &r.MTime, &r.State, &r.Missing, &r.NoTrack); err != nil {
 			return nil, err
 		}
 		out[rel] = r

@@ -72,7 +72,8 @@
     justify-content: space-between;
     box-sizing: border-box;
     height: var(--header-height);
-    padding: 10px 8px 10px 20px;
+    padding-block: 10px;
+    padding-inline: 20px 8px;
   }
   .actions {
     display: flex;

@@ -119,9 +119,7 @@
       ? ''
       : searching
         ? t('explore.searching')
-        : total === 1
-          ? t('explore.countOne', { q: urlQuery })
-          : t('explore.count', { n: total, q: urlQuery }),
+        : t('explore.count', { n: total, q: urlQuery }),
   );
 
   // ---- Add (owner and admin) and Ask (member) ----
@@ -265,7 +263,7 @@
   }
   .glyph {
     position: absolute;
-    left: 16px;
+    inset-inline-start: 16px;
     top: 16px;
     display: flex;
     color: var(--muted);
@@ -275,7 +273,8 @@
     box-sizing: border-box;
     width: 100%;
     height: 52px;
-    padding: 0 16px 0 46px;
+    padding-block: 0;
+    padding-inline: 46px 16px;
     background: var(--input);
     border: 1px solid var(--input-border);
     border-radius: var(--radius-sm);

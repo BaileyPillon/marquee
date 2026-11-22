@@ -6,6 +6,7 @@ import (
 	"math"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/BaileyPillon/marquee/internal/accounts"
@@ -150,7 +151,7 @@ func (s *Server) handleRequestAsk(w http.ResponseWriter, r *http.Request, p *acc
 
 // ---- reading ---------------------------------------------------------------
 
-// GET /api/v1/requests?state=&mine=1&limit=&offset=
+// GET /api/v1/requests?state=&mine=1&titleId=&limit=&offset=
 func (s *Server) handleRequestList(w http.ResponseWriter, r *http.Request, p *accounts.Principal) {
 	q := r.URL.Query()
 	f := requests.ListFilter{State: q.Get("state")}
@@ -162,6 +163,10 @@ func (s *Server) handleRequestList(w http.ResponseWriter, r *http.Request, p *ac
 		}
 		f.Mine = mine
 	}
+	titleID, ok := queryInt(w, q.Get("titleId"), "titleId", 0, 1, 1<<62)
+	if !ok {
+		return
+	}
 	limit, ok := queryInt(w, q.Get("limit"), "limit", 0, 1, 1<<20)
 	if !ok {
 		return
@@ -170,7 +175,7 @@ func (s *Server) handleRequestList(w http.ResponseWriter, r *http.Request, p *ac
 	if !ok {
 		return
 	}
-	f.Limit, f.Offset = int(limit), int(offset)
+	f.TitleID, f.Limit, f.Offset = titleID, int(limit), int(offset)
 	res, err := s.Requests.List(r.Context(), actorOf(p), f)
 	if err != nil {
 		s.requestsError(w, r, err)
@@ -278,6 +283,8 @@ func (s *Server) handlePeople(w http.ResponseWriter, r *http.Request, p *account
 // PUT /api/v1/people/{userId}/limits {hdPerWeek?, uhdPerWeek?, autoApproveHD?, autoApproveUHD?}
 //
 // A field left out stays as it is; a field sent as null goes back to the default.
+// A weekly limit is a whole number from 0 up, or the word "unlimited" (stored as
+// -1); the answer then shows it as null with hdUnlimited / uhdUnlimited true.
 func (s *Server) handlePersonLimits(w http.ResponseWriter, r *http.Request, p *accounts.Principal) {
 	userID, err := strconv.ParseInt(r.PathValue("userId"), 10, 64)
 	if err != nil || userID <= 0 {
@@ -300,8 +307,18 @@ func (s *Server) handlePersonLimits(w http.ResponseWriter, r *http.Request, p *a
 			dst.Set = true
 			if !null {
 				var n int
-				if err := json.Unmarshal(v, &n); err != nil {
-					writeError(w, http.StatusBadRequest, "invalid_request", k+" must be a whole number, or null for the default.")
+				var word string
+				switch {
+				case json.Unmarshal(v, &word) == nil && strings.EqualFold(strings.TrimSpace(word), "unlimited"):
+					n = requests.Unlimited
+				case json.Unmarshal(v, &n) != nil:
+					writeError(w, http.StatusBadRequest, "invalid_request",
+						k+` must be a whole number, "unlimited", or null for the default.`)
+					return
+				case n < 0:
+					// Unlimited is only ever said in words; a bare -1 is a mistake.
+					writeError(w, http.StatusBadRequest, "invalid_limit",
+						`A weekly limit is a whole number from 0 up, or "unlimited".`)
 					return
 				}
 				dst.Value = &n

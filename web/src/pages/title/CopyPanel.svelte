@@ -45,7 +45,10 @@
   let all = $state.raw<RequestItem[]>([]);
   let profile = $state.raw<Profile | undefined>();
 
-  /** The 4K asks for this title, newest first. */
+  /**
+   * The 4K asks for this title, newest first. The server only sends this title's; the check also
+   * keeps the last title's asks off the screen for the moment after navigating to another.
+   */
   const mine = $derived(all.filter((r) => r.title.id === titleId && r.quality === 'uhd'));
   // The one that matters: one still waiting, else one that is going through, else the latest.
   const current = $derived(
@@ -56,7 +59,7 @@
 
   async function load(): Promise<void> {
     try {
-      all = (await listRequests({ limit: 200, mine: !canAnswer })).items;
+      all = (await listRequests({ titleId, limit: 50, mine: !canAnswer })).items;
       status = 'ready';
     } catch (err) {
       if (isRouteMissing(err)) status = 'off';

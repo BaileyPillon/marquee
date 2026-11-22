@@ -1,0 +1,103 @@
+{
+  "language": "es",
+  "register": "tú (neutral Latin-American/Spain-safe wording, no voseo)",
+  "terms": {
+    "ask": {
+      "use": "petición (sustantivo), pedir (verbo); la pantalla 'Requests' es 'Peticiones'",
+      "avoid": [
+        "solicitud",
+        "pedido"
+      ]
+    },
+    "approve": {
+      "use": "aprobar",
+      "avoid": [
+        "autorizar"
+      ]
+    },
+    "decline": {
+      "use": "rechazar",
+      "avoid": [
+        "denegar"
+      ]
+    },
+    "owner": {
+      "use": "propietario",
+      "avoid": [
+        "dueño"
+      ]
+    },
+    "admin": {
+      "use": "Admin",
+      "avoid": [
+        "Administrador"
+      ]
+    },
+    "member": {
+      "use": "miembro",
+      "avoid": []
+    },
+    "library": {
+      "use": "biblioteca",
+      "avoid": [
+        "librería",
+        "mediateca"
+      ]
+    },
+    "download app": {
+      "use": "app de descargas",
+      "avoid": [
+        "cliente de descarga",
+        "gestor de descargas"
+      ]
+    },
+    "media server": {
+      "use": "servidor multimedia",
+      "avoid": [
+        "servidor de medios"
+      ]
+    },
+    "source": {
+      "use": "fuente",
+      "avoid": []
+    },
+    "release": {
+      "use": "release (m., término técnico)",
+      "avoid": [
+        "lanzamiento"
+      ]
+    },
+    "grab": {
+      "use": "Obtener",
+      "avoid": [
+        "Capturar",
+        "Agarrar"
+      ]
+    },
+    "4K copy": {
+      "use": "copia 4K",
+      "avoid": [
+        "versión 4K"
+      ]
+    },
+    "watchlist": {
+      "use": "lista de seguimiento",
+      "avoid": [
+        "watchlist"
+      ]
+    },
+    "monitor": {
+      "use": "Seguir",
+      "avoid": [
+        "Monitorizar",
+        "Vigilar"
+      ]
+    }
+  },
+  "notes": [
+    "Marquee se queda como Marquee.",
+    "Botones breves con infinitivo ('Añadir', 'Guardar').",
+    "Usa 'ordenador' solo si hace falta; mejor 'equipo' o 'este equipo'."
+  ],
+  "sameAsEnglish": []
+}

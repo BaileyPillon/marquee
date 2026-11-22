@@ -2,7 +2,7 @@
 // ("Coming up") and the Calendar page.
 import { titlePath } from './catalog';
 import { dayOf } from './format';
-import { t } from './i18n';
+import { formatDate, formatNumber, t } from './i18n';
 import type { CalendarItem } from './serversApi';
 
 /** "S01E04" for an episode, empty for anything else. */
@@ -61,7 +61,7 @@ export function dayParts(iso: string): { day: string; date: string } {
   const when = dayOf(iso);
   if (!when) return { day: '', date: '' };
   return {
-    day: new Intl.DateTimeFormat(undefined, { weekday: 'short' }).format(when),
-    date: String(when.getDate()),
+    day: formatDate(when, { weekday: 'short' }),
+    date: formatNumber(when.getDate()),
   };
 }

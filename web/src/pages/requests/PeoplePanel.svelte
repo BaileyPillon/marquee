@@ -174,7 +174,7 @@
     color: var(--text);
   }
   .role {
-    margin-left: 8px;
+    margin-inline-start: 8px;
     font-size: 12px;
     font-weight: 500;
     color: var(--muted);

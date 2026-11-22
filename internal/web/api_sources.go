@@ -86,6 +86,8 @@ func (s *Server) searchError(w http.ResponseWriter, r *http.Request, err error) 
 		writeError(w, http.StatusNotFound, "not_found", "No such title.")
 	case errors.Is(err, search.ErrNoGrabber):
 		writeError(w, http.StatusConflict, "no_grabber", "No download client is set up yet. Add one in Settings, then try again.")
+	case errors.Is(err, search.ErrNoSources):
+		writeError(w, http.StatusConflict, "no_sources", "No source is set up yet. Add one in Settings, then try again.")
 	case errors.Is(err, search.ErrNoCopy):
 		writeError(w, http.StatusConflict, "no_copy", "This title is not set up in that quality yet. Add or ask for that copy first.")
 	case errors.Is(err, search.ErrReleaseGone):

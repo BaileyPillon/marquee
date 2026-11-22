@@ -139,6 +139,9 @@ func (c *Client) Do(req *http.Request, opts ...CallOption) (*http.Response, erro
 	if co.noRedirect {
 		ctx = context.WithValue(ctx, noRedirectKey{}, true)
 	}
+	if co.limitRedirects {
+		ctx = context.WithValue(ctx, redirectHostsKey{}, co.redirectHosts)
+	}
 	req = req.Clone(ctx)
 	if req.Header.Get("User-Agent") == "" {
 		req.Header.Set("User-Agent", c.userAgent)
@@ -204,6 +207,10 @@ type CallOption func(*callOptions)
 type callOptions struct {
 	timeout    time.Duration
 	noRedirect bool
+	// redirectHosts, when limitRedirects is set, are the only hosts a redirect of
+	// this call may lead to.
+	limitRedirects bool
+	redirectHosts  []string
 }
 
 // WithTimeout replaces the default total timeout for one call.
@@ -214,21 +221,86 @@ func WithTimeout(d time.Duration) CallOption { return func(o *callOptions) { o.t
 // redirect to a magnet: link (which no HTTP client can follow) is seen.
 func WithNoRedirect() CallOption { return func(o *callOptions) { o.noRedirect = true } }
 
-type noRedirectKey struct{}
+// WithRedirectHosts limits where one call's redirects may lead: every redirect must
+// go to a host that matches one of hosts, or the call fails with
+// ErrRedirectNotAllowed. A host is written as a name ("archive.org", which means
+// exactly that name) or as "*.archive.org" (any name below it, but not archive.org
+// itself, so list both). Names are compared without case or port. A redirect must
+// also stay on http or https and never fall back from https to http. With no hosts
+// at all, no redirect is followed.
+//
+// A call without this option follows redirects anywhere (up to 10 of them); use it
+// whenever the address a call starts from is not enough reason to trust wherever
+// it ends up.
+func WithRedirectHosts(hosts ...string) CallOption {
+	return func(o *callOptions) {
+		o.limitRedirects = true
+		o.redirectHosts = append([]string(nil), hosts...)
+	}
+}
+
+// ErrRedirectNotAllowed is returned (wrapped) when a redirect leads somewhere a
+// call said it must not (WithRedirectHosts).
+var ErrRedirectNotAllowed = errors.New("outbound: the redirect leads to a host that is not allowed")
+
+type (
+	noRedirectKey    struct{}
+	redirectHostsKey struct{}
+)
 
 // maxRedirects matches net/http's own default.
 const maxRedirects = 10
 
 // checkRedirect is the client-wide redirect policy: stop after maxRedirects,
-// and stop at once for a call that asked for WithNoRedirect.
+// stop at once for a call that asked for WithNoRedirect, and refuse a redirect to
+// a host a call did not allow (WithRedirectHosts).
 func checkRedirect(req *http.Request, via []*http.Request) error {
 	if req.Context().Value(noRedirectKey{}) != nil {
 		return http.ErrUseLastResponse
+	}
+	if hosts, ok := req.Context().Value(redirectHostsKey{}).([]string); ok {
+		if err := redirectAllowed(req.URL, via, hosts); err != nil {
+			return err
+		}
 	}
 	if len(via) >= maxRedirects {
 		return errors.New("stopped after 10 redirects")
 	}
 	return nil
+}
+
+// redirectAllowed checks one redirect target against a call's allowed hosts.
+func redirectAllowed(target *url.URL, via []*http.Request, hosts []string) error {
+	if target.Scheme != "http" && target.Scheme != "https" {
+		return fmt.Errorf("%w: it is not an http or https address", ErrRedirectNotAllowed)
+	}
+	if len(via) > 0 && via[len(via)-1].URL.Scheme == "https" && target.Scheme != "https" {
+		return fmt.Errorf("%w: it would leave https", ErrRedirectNotAllowed)
+	}
+	if target.User != nil {
+		return fmt.Errorf("%w: it carries a login", ErrRedirectNotAllowed)
+	}
+	host := strings.TrimSuffix(strings.ToLower(target.Hostname()), ".")
+	for _, pattern := range hosts {
+		if hostMatches(host, pattern) {
+			return nil
+		}
+	}
+	return fmt.Errorf("%w: %s", ErrRedirectNotAllowed, host)
+}
+
+// hostMatches reports whether a lower-case host name fits a pattern: the same name,
+// or for "*.name" any name below it.
+func hostMatches(host, pattern string) bool {
+	pattern = strings.TrimSuffix(strings.ToLower(strings.TrimSpace(pattern)), ".")
+	switch {
+	case host == "" || pattern == "":
+		return false
+	case strings.HasPrefix(pattern, "*."):
+		suffix := pattern[1:] // ".archive.org"
+		return len(host) > len(suffix) && strings.HasSuffix(host, suffix)
+	}
+	return host == pattern
 }
 
 func (c *Client) logCall(req *http.Request, status, attempts int, took time.Duration, err error) {

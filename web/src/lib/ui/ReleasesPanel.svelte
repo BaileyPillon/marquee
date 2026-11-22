@@ -11,7 +11,7 @@
   import { ApiError } from '../core/api';
   import { failureKey, type ApiKind } from '../core/catalog';
   import { formatBytes, formatWhen } from '../core/format';
-  import { t } from '../core/i18n';
+  import { formatList, t } from '../core/i18n';
   import { isDesktop } from '../core/media';
   import { findReleases, grabRelease, type FoundRelease, type ReleaseSearch } from '../core/sourcesApi';
   import { createToaster } from '../core/toast.svelte.ts';
@@ -150,7 +150,7 @@
   function ageText(days: number | null): string {
     if (days === null) return '';
     if (days <= 0) return t('releases.age.today');
-    return days === 1 ? t('releases.age.one') : t('releases.age.many', { n: days });
+    return t('releases.age.days', { n: days });
   }
 
   function extras(r: FoundRelease): string {
@@ -232,9 +232,7 @@
     {#if search && search.indexersFailed.length > 0}
       <p class="problem" role="status">
         {t('releases.failedSources', {
-          names: new Intl.ListFormat(undefined, { style: 'long', type: 'conjunction' }).format(
-            search.indexersFailed.map((f) => f.name),
-          ),
+          names: formatList(search.indexersFailed.map((f) => f.name)),
         })}
       </p>
     {/if}
@@ -367,7 +365,7 @@
     color: var(--danger);
   }
   .problem a {
-    margin-left: 6px;
+    margin-inline-start: 6px;
     font-weight: 600;
   }
   .empty {

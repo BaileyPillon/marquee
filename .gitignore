@@ -11,3 +11,6 @@ web/dist/
 *.log
 .env*
 *.exe
+
+# i18n translation work files (see web/scripts/i18n)
+web/scripts/i18n/work/

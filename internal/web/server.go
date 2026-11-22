@@ -10,6 +10,8 @@ import (
 	"io/fs"
 	"log/slog"
 	"net/http"
+	"net/netip"
+	"sync/atomic"
 	"time"
 
 	"github.com/BaileyPillon/marquee/internal/accounts"
@@ -27,6 +29,7 @@ import (
 	"github.com/BaileyPillon/marquee/internal/search"
 	"github.com/BaileyPillon/marquee/internal/settings"
 	"github.com/BaileyPillon/marquee/internal/sources"
+	"github.com/BaileyPillon/marquee/internal/subtitles"
 	"github.com/BaileyPillon/marquee/internal/titles"
 	"github.com/BaileyPillon/marquee/internal/watchlists"
 )
@@ -63,9 +66,21 @@ type Deps struct {
 	Watchlists *watchlists.Service
 	Calendar   *calendar.Service
 	Alerts     *alerts.Service
+	// Subtitles finds and places subtitles (api_subtitles.go); nil leaves its
+	// routes out.
+	Subtitles *subtitles.Service
 	// MCP is the Model Context Protocol server (api_mcp.go); nil leaves its
 	// routes out.
 	MCP MCPService
+	// Jobs says how the background jobs are doing, for GET /api/v1/system/status
+	// (api_system.go); nil leaves that part out. ConfigDir is the config folder,
+	// shown there with its free space and database sizes.
+	Jobs      JobStatuser
+	ConfigDir string
+	// TrustedProxies are the reverse proxies named in the environment
+	// (MARQUEE_TRUSTED_PROXIES), as CIDR ranges or addresses; the owner's "server"
+	// setting can add more (see proxy.go). Entries that do not parse are ignored.
+	TrustedProxies []string
 	// UI is the built single-page app, rooted so that index.html is at its top.
 	UI fs.FS
 }
@@ -74,6 +89,11 @@ type Deps struct {
 type Server struct {
 	Deps
 	log *slog.Logger
+
+	// rt is the parsed "server" setting, kept a few seconds (serverconfig.go);
+	// envProxies are the trusted proxies from the environment.
+	rt         atomic.Pointer[runtimeConfig]
+	envProxies []netip.Prefix
 }
 
 // New builds a Server.
@@ -84,7 +104,13 @@ func New(d Deps) *Server {
 	if d.Started.IsZero() {
 		d.Started = time.Now()
 	}
-	return &Server{Deps: d, log: d.Log}
+	s := &Server{Deps: d, log: d.Log}
+	if prefixes, err := ParseProxyList(d.TrustedProxies); err != nil {
+		s.log.Warn("MARQUEE_TRUSTED_PROXIES is not valid; no proxy is trusted from the environment", "err", err)
+	} else {
+		s.envProxies = prefixes
+	}
+	return s
 }
 
 // Handler returns the full handler: middleware, API, and UI.
@@ -141,6 +167,13 @@ func (s *Server) Handler() http.Handler {
 	s.registerCalendar(api)
 	s.registerAlerts(api)
 
+	// Subtitles (api_subtitles.go) and the album search (api_music.go).
+	s.registerSubtitles(api)
+	s.registerMusic(api)
+
+	// The owner's and admins' view of how Marquee is doing (api_system.go).
+	s.registerSystem(api)
+
 	// Anything else under /api/ is a JSON 404, never the UI.
 	api.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "not_found", "No such endpoint.")
@@ -158,6 +191,9 @@ func (s *Server) Handler() http.Handler {
 	h = s.recoverer(h)
 	h = s.accessLog(h)
 	h = requestID(h)
+	// Outermost, so every layer below sees the visitor's real address and scheme
+	// when (and only when) the request came from a trusted proxy (proxy.go).
+	h = s.forwardedMiddleware(h)
 	return h
 }
 

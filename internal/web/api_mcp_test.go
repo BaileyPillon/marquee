@@ -154,10 +154,11 @@ func TestMCPInfoRoute(t *testing.T) {
 		t.Errorf("the service was told user %q origin %q", f.infoUser, f.infoOrigin)
 	}
 
-	// A member gets it too, as themselves; behind a TLS proxy the URL says https.
+	// A member gets it too, as themselves. X-Forwarded-Proto is only believed from a
+	// trusted proxy (see proxy_test.go): from anybody else the URL stays http.
 	member := a.member(owner, "Mia")
 	r = member.do("GET", "/api/v1/mcp/info", nil, "X-Forwarded-Proto", "https")
-	if r.Status != http.StatusOK || f.infoUser != "Mia" || !strings.HasPrefix(f.infoOrigin, "https://127.0.0.1:") {
+	if r.Status != http.StatusOK || f.infoUser != "Mia" || !strings.HasPrefix(f.infoOrigin, "http://127.0.0.1:") {
 		t.Errorf("member = %d %s (user %q origin %q)", r.Status, r.Body, f.infoUser, f.infoOrigin)
 	}
 

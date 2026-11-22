@@ -78,6 +78,7 @@ type Titles interface {
 type Have struct {
 	Movie      bool    // the film is in the copy's folder
 	EpisodeIDs []int64 // episodes that have a file in the copy's folder
+	AlbumIDs   []int64 // albums that have a file in the copy's folder
 }
 
 // Shelf says what a copy already has, so a search only asks for the rest. The
@@ -292,8 +293,12 @@ func (j judge) scoreOne(it sources.Item, source string, priority int, w decide.W
 	rel := toRelease(it, j.blocks)
 	w.Now = j.now
 	v := decide.Score(j.profile, j.title, w, parsed, rel)
+	quality := parse.QualityName(parsed)
+	if j.title.Kind == titles.KindArtist {
+		quality = parse.ParseMusicRelease(it.Title).QualityName() // "FLAC", "MP3-320kbps"
+	}
 	return scored{
-		item: it, source: source, priority: priority, parsed: parsed, quality: parse.QualityName(parsed),
+		item: it, source: source, priority: priority, parsed: parsed, quality: quality,
 		entry: decide.Entry{Release: rel, Parsed: parsed, Verdict: v, Priority: priority},
 	}
 }

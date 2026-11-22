@@ -1,0 +1,104 @@
+{
+  "language": "fr",
+  "register": "vous (courtois, comme la plupart des applications)",
+  "terms": {
+    "ask": {
+      "use": "demande (nom), demander (verbe); l'écran 'Requests' est 'Demandes'",
+      "avoid": [
+        "requête",
+        "souhait"
+      ]
+    },
+    "approve": {
+      "use": "approuver",
+      "avoid": [
+        "valider"
+      ]
+    },
+    "decline": {
+      "use": "refuser",
+      "avoid": [
+        "rejeter",
+        "décliner"
+      ]
+    },
+    "owner": {
+      "use": "propriétaire",
+      "avoid": [
+        "maître"
+      ]
+    },
+    "admin": {
+      "use": "Admin",
+      "avoid": [
+        "Administrateur"
+      ]
+    },
+    "member": {
+      "use": "Membre",
+      "avoid": []
+    },
+    "library": {
+      "use": "bibliothèque",
+      "avoid": [
+        "médiathèque",
+        "librairie"
+      ]
+    },
+    "download app": {
+      "use": "appli de téléchargement",
+      "avoid": [
+        "client de téléchargement",
+        "application de téléchargement"
+      ]
+    },
+    "media server": {
+      "use": "serveur multimédia",
+      "avoid": [
+        "serveur de médias"
+      ]
+    },
+    "source": {
+      "use": "source",
+      "avoid": []
+    },
+    "release": {
+      "use": "version (de publication) / release",
+      "avoid": [
+        "sortie"
+      ]
+    },
+    "grab": {
+      "use": "Récupérer",
+      "avoid": [
+        "Saisir",
+        "Attraper"
+      ]
+    },
+    "4K copy": {
+      "use": "copie 4K",
+      "avoid": [
+        "version 4K"
+      ]
+    },
+    "watchlist": {
+      "use": "liste à regarder",
+      "avoid": [
+        "watchlist",
+        "liste de souhaits"
+      ]
+    },
+    "monitor": {
+      "use": "Suivre",
+      "avoid": [
+        "Surveiller"
+      ]
+    }
+  },
+  "notes": [
+    "Marquee reste Marquee.",
+    "Espace insécable avant : ; ! ? et à l'intérieur des guillemets « ».",
+    "Boutons courts à l'infinitif ('Ajouter', 'Enregistrer')."
+  ],
+  "sameAsEnglish": []
+}

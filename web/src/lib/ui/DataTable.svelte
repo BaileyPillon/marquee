@@ -103,8 +103,7 @@
     grid-template-columns: var(--cols);
     column-gap: 16px;
     box-sizing: border-box;
-    padding-left: var(--pad-x);
-    padding-right: var(--pad-x);
+    padding-inline: var(--pad-x);
   }
   .th {
     font-size: 11px;
@@ -118,7 +117,7 @@
     min-width: 0;
   }
   .end {
-    text-align: right;
+    text-align: end;
   }
 
   .loose .head {

@@ -1,6 +1,12 @@
 package library
 
-import "context"
+import (
+	"context"
+	"database/sql"
+	"errors"
+
+	"github.com/BaileyPillon/marquee/internal/core/db"
+)
 
 // DeleteFiles removes file rows of one folder by relative path.
 func (s *Store) DeleteFiles(ctx context.Context, folderID int64, rels []string) error {
@@ -15,6 +21,32 @@ func (s *Store) DeleteFiles(ctx context.Context, folderID int64, rels []string) 
 			return err
 		}
 		rels = rels[n:]
+	}
+	return nil
+}
+
+// GetFile returns one file row, or ErrNotFound.
+func (s *Store) GetFile(ctx context.Context, id int64) (File, error) {
+	f, err := scanFile(s.db.QueryRowContext(ctx, `SELECT `+fileCols+` FROM files WHERE id = ?`, id))
+	if errors.Is(err, sql.ErrNoRows) {
+		return File{}, ErrNotFound
+	}
+	return f, err
+}
+
+// RenameFile gives a file row a new path inside its folder, keeping everything
+// else the scan or the importer knew about it. A path another row already has
+// gives ErrNameInUse.
+func (s *Store) RenameFile(ctx context.Context, id int64, newRel string, mtime int64) error {
+	res, err := s.db.ExecContext(ctx, `UPDATE files SET rel_path = ?, mtime = ?, missing_since = NULL WHERE id = ?`, newRel, mtime, id)
+	if err != nil {
+		if db.IsUniqueViolation(err) {
+			return ErrNameInUse
+		}
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return ErrNotFound
 	}
 	return nil
 }

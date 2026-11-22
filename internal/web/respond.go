@@ -46,9 +46,22 @@ func decodeJSON(w http.ResponseWriter, r *http.Request, dst any) bool {
 	return decodeJSONLimit(w, r, dst, maxBody)
 }
 
+// decodeStrictJSON is decodeJSON that also refuses a field the type does not have,
+// so a misspelt setting is an error instead of being ignored.
+func decodeStrictJSON(w http.ResponseWriter, r *http.Request, dst any) bool {
+	return decodeJSONWith(w, r, dst, maxBody, true)
+}
+
 func decodeJSONLimit(w http.ResponseWriter, r *http.Request, dst any, limit int64) bool {
+	return decodeJSONWith(w, r, dst, limit, false)
+}
+
+func decodeJSONWith(w http.ResponseWriter, r *http.Request, dst any, limit int64, strict bool) bool {
 	r.Body = http.MaxBytesReader(w, r.Body, limit)
 	dec := json.NewDecoder(r.Body)
+	if strict {
+		dec.DisallowUnknownFields()
+	}
 	if err := dec.Decode(dst); err != nil {
 		var tooBig *http.MaxBytesError
 		switch {

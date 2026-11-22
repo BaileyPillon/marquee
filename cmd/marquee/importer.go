@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"log/slog"
+	"sync/atomic"
 
 	"github.com/BaileyPillon/marquee/internal/core/events"
 	"github.com/BaileyPillon/marquee/internal/core/jobs"
@@ -17,6 +18,7 @@ import (
 	"github.com/BaileyPillon/marquee/internal/mediaservers"
 	"github.com/BaileyPillon/marquee/internal/requests"
 	"github.com/BaileyPillon/marquee/internal/search"
+	"github.com/BaileyPillon/marquee/internal/sources"
 	"github.com/BaileyPillon/marquee/internal/titles"
 )
 
@@ -43,13 +45,41 @@ func newHistory(mainDB *sql.DB, reqs *requests.Service, log *slog.Logger) *histo
 // recordedGrabber writes a "grabbed" entry to a title's history each time a
 // release is sent to a download client. It sits around the downloads module's
 // Grabber, so neither the search nor the downloads code knows about the history.
-func recordedGrabber(g grab.Grabber, h history.Recorder) grab.Grabber {
-	return grabRecorder{Grabber: g, h: h}
+//
+// names, when given, turns the release's indexer id into the name the owner gave
+// the source ("Archive feed"), so the history can say where a release came from.
+func recordedGrabber(g grab.Grabber, h history.Recorder, names ...func(ctx context.Context, indexerID int64) string) grab.Grabber {
+	gr := grabRecorder{Grabber: g, h: h}
+	if len(names) > 0 {
+		gr.name = names[0]
+	}
+	return gr
+}
+
+// indexerNames finds a source's name for the history. The grabber is built before
+// the sources exist (the sources are built with it), so the service is set after.
+type indexerNames struct {
+	src atomic.Pointer[sources.Service]
+}
+
+func (n *indexerNames) set(s *sources.Service) { n.src.Store(s) }
+
+func (n *indexerNames) name(ctx context.Context, id int64) string {
+	s := n.src.Load()
+	if s == nil {
+		return ""
+	}
+	ix, err := s.Get(ctx, id)
+	if err != nil {
+		return ""
+	}
+	return ix.Name
 }
 
 type grabRecorder struct {
 	grab.Grabber
-	h history.Recorder
+	h    history.Recorder
+	name func(ctx context.Context, indexerID int64) string
 }
 
 func (g grabRecorder) Grab(ctx context.Context, t grab.Target, r grab.Release) (int64, error) {
@@ -62,6 +92,11 @@ func (g grabRecorder) Grab(ctx context.Context, t grab.Target, r grab.Release) (
 	}
 	if len(r.Reasons) > 0 {
 		detail["why"] = r.Reasons[0]
+	}
+	if g.name != nil && r.IndexerID > 0 {
+		if n := g.name(ctx, r.IndexerID); n != "" {
+			detail["indexer"] = n
+		}
 	}
 	if len(t.EpisodeIDs) > 0 {
 		detail["episodeIds"] = t.EpisodeIDs

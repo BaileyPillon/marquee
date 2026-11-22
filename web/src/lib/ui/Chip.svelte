@@ -134,7 +134,8 @@
     line-height: 1;
   }
   .lg.with-icon {
-    padding: 0 11px 0 9px;
+    padding-block: 0;
+    padding-inline: 9px 11px;
   }
   .xl {
     gap: 6px;

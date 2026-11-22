@@ -42,6 +42,7 @@ export const icons = {
   edit: 'M4 20l1-4L16.5 4.5a2 2 0 0 1 3 3L8 19l-4 1z M14.5 6.5l3 3',
   key: 'M14 10a4 4 0 1 1 3 3.9L16 15h-2v2h-2v2H9v-2.2l5.1-5.1A4 4 0 0 1 14 10z M17.5 8.5h.01',
   signOut: 'M10 4H5v16h5 M15 8l4 4-4 4 M19 12H9',
+  globe: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z M3 12h18 M12 3c2.4 2.5 3.6 5.5 3.6 9s-1.2 6.5-3.6 9c-2.4-2.5-3.6-5.5-3.6-9S9.6 5.5 12 3z',
 } as const;
 
 export type IconName = keyof typeof icons;

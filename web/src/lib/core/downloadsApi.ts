@@ -38,7 +38,24 @@ export interface DownloadView {
   createdAt: string;
   updatedAt: string;
   completedAt: string | null;
+  /**
+   * Where the import is up to while the download is importing (and after): checking, renaming,
+   * moving, rescanning, or done. Empty before an import starts. Older servers leave it out.
+   */
+  importStep?: ImportStep | '';
+  /** The path the import is putting the files in (owner and admins only). */
+  importTarget?: string;
+  /** How a finished download ended; empty while it is going. Older servers leave it out. */
+  outcome?: DownloadOutcome | '';
 }
+
+/** The steps of an import, in order. */
+export type ImportStep = 'checking' | 'renaming' | 'moving' | 'rescanning' | 'done';
+
+export const IMPORT_STEPS: readonly ImportStep[] = ['checking', 'renaming', 'moving', 'rescanning', 'done'];
+
+/** How a finished download ended (the history list). */
+export type DownloadOutcome = 'imported' | 'upgraded' | 'failed' | 'removed';
 
 export interface DownloadList {
   downloads: DownloadView[];
@@ -97,6 +114,8 @@ export interface DownloadEvent {
   titleId?: number;
   state?: DownloadState;
   progress?: number;
+  /** On a `state` event: where the import is up to. (Never the path: the stream reaches everyone.) */
+  importStep?: ImportStep | '';
   items?: Array<{
     id: number;
     state: DownloadState;

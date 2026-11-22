@@ -1,0 +1,98 @@
+{
+  "language": "pl",
+  "register": "bezpośrednio, bez 'pan/pani'; zwroty w trybie rozkazującym ('Dodaj', 'Zapisz'), 'Twój/Twoja' gdzie trzeba",
+  "terms": {
+    "ask": {
+      "use": "prośba (rzeczownik), poprosić (czasownik); ekran 'Requests' to 'Prośby'",
+      "avoid": [
+        "żądanie",
+        "zapytanie",
+        "wniosek"
+      ]
+    },
+    "approve": {
+      "use": "zatwierdzić",
+      "avoid": [
+        "zaakceptować",
+        "autoryzować"
+      ]
+    },
+    "decline": {
+      "use": "odrzucić",
+      "avoid": [
+        "odmówić"
+      ]
+    },
+    "owner": {
+      "use": "właściciel",
+      "avoid": []
+    },
+    "admin": {
+      "use": "Admin",
+      "avoid": []
+    },
+    "member": {
+      "use": "członek",
+      "avoid": []
+    },
+    "library": {
+      "use": "biblioteka",
+      "avoid": [
+        "kolekcja",
+        "mediateka"
+      ]
+    },
+    "download app": {
+      "use": "aplikacja do pobierania",
+      "avoid": [
+        "klient pobierania",
+        "program do pobierania"
+      ]
+    },
+    "media server": {
+      "use": "serwer multimediów",
+      "avoid": [
+        "serwer mediów"
+      ]
+    },
+    "source": {
+      "use": "źródło",
+      "avoid": []
+    },
+    "release": {
+      "use": "wydanie",
+      "avoid": []
+    },
+    "grab": {
+      "use": "Pobierz",
+      "avoid": [
+        "Chwyć",
+        "Złap"
+      ]
+    },
+    "4K copy": {
+      "use": "kopia 4K",
+      "avoid": [
+        "wersja 4K"
+      ]
+    },
+    "watchlist": {
+      "use": "lista do obejrzenia",
+      "avoid": [
+        "watchlist"
+      ]
+    },
+    "monitor": {
+      "use": "Monitoruj",
+      "avoid": [
+        "Obserwuj"
+      ]
+    }
+  },
+  "notes": [
+    "Marquee zostaje Marquee.",
+    "Liczby mnoge: one/few/many/other, pamiętaj o wszystkich kategoriach.",
+    "Daty i jednostki jak w ICU."
+  ],
+  "sameAsEnglish": []
+}

@@ -236,7 +236,8 @@ func TestPeopleAndLimits(t *testing.T) {
 	}
 
 	// Mistakes and permissions.
-	for _, p := range []LimitsPatch{{HDPerWeek: intP(-1)}, {UHDPerWeek: intP(maxPerWeek + 1)}} {
+	// (-1 is not a mistake any more: it is Unlimited, see TestUnlimitedLimits.)
+	for _, p := range []LimitsPatch{{HDPerWeek: intP(-2)}, {UHDPerWeek: intP(maxPerWeek + 1)}} {
 		if _, err := e.svc.SetLimits(bg(), actorOf(e.owner), e.mia.ID, p); !isInvalid(err) {
 			t.Errorf("SetLimits(%+v) = %v, want an InvalidError", p, err)
 		}

@@ -23,10 +23,11 @@ type candIdx struct {
 // title (and episodes) it belongs to. It lives for one scan: the candidate
 // lists are fetched once and kept.
 type matcher struct {
-	ctx   context.Context
-	ts    TitleSource
-	log   *slog.Logger
-	cands map[string][]candIdx
+	ctx    context.Context
+	ts     TitleSource
+	log    *slog.Logger
+	cands  map[string][]candIdx
+	albums map[int64][]AlbumInfo
 }
 
 func newMatcher(ctx context.Context, ts TitleSource, log *slog.Logger) *matcher {
@@ -268,14 +269,59 @@ func (m *matcher) matchShow(w *fileWrite, rel string, fr parse.Release) {
 
 // ---- music -------------------------------------------------------------------
 
-// matchMusic matches the artist only; albums and tracks come with the music
-// milestone.
+// matchMusic matches the artist and, when the TitleSource can list the artist's
+// albums (an AlbumSource), the track: the album by its name, the track by its
+// number and title. A track that is not sure is left unset, so a wrong number
+// never marks the wrong track as in the library.
 func (m *matcher) matchMusic(w *fileWrite, mr parse.MusicRelease) {
 	if mr.Artist == "" {
 		return
 	}
 	cands := m.candidates(CandidateArtist)
-	if c, ok := pick(cands, mr.Artist, 0); ok {
-		setMatch(w, c.ID)
+	c, ok := pick(cands, mr.Artist, 0)
+	if !ok {
+		return
 	}
+	setMatch(w, c.ID)
+	if id, ok := m.trackOf(c.ID, mr); ok {
+		w.TrackID = &id
+	}
+}
+
+// albumsOf lists an artist's albums once per scan (nil when the TitleSource
+// cannot say).
+func (m *matcher) albumsOf(titleID int64) []AlbumInfo {
+	src, ok := m.ts.(AlbumSource)
+	if !ok {
+		return nil
+	}
+	if list, done := m.albums[titleID]; done {
+		return list
+	}
+	list, err := src.Albums(m.ctx, titleID)
+	if err != nil {
+		m.log.Warn("library: could not list an artist's albums", "title", titleID, "err", err)
+		list = nil
+	}
+	if m.albums == nil {
+		m.albums = map[int64][]AlbumInfo{}
+	}
+	m.albums[titleID] = list
+	return list
+}
+
+// trackOf finds the track a music file is among the artist's albums.
+func (m *matcher) trackOf(titleID int64, mr parse.MusicRelease) (int64, bool) {
+	if mr.Album == "" || mr.Track <= 0 {
+		return 0, false
+	}
+	for _, al := range m.albumsOf(titleID) {
+		if !parse.AlbumNameMatches(al.Name, mr.Album) {
+			continue
+		}
+		if t, how := parse.MatchTrack(al.Tracks, mr.Disc, mr.Track, mr.Title); how == parse.SureTrack {
+			return t.ID, true
+		}
+	}
+	return 0, false
 }

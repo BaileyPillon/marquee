@@ -5,7 +5,6 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"log/slog"
-	"net"
 	"net/http"
 	"runtime/debug"
 	"strings"
@@ -26,6 +25,7 @@ type ctxKey int
 const (
 	requestIDKey ctxKey = iota
 	principalKey
+	forwardedKey // what a trusted proxy said about the request (proxy.go)
 )
 
 // RequestID returns the id of the request a context belongs to.
@@ -154,12 +154,4 @@ func securityHeaders(next http.Handler) http.Handler {
 		h.Set("Referrer-Policy", "same-origin")
 		next.ServeHTTP(w, r)
 	})
-}
-
-func clientIP(r *http.Request) string {
-	host, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err != nil {
-		return r.RemoteAddr
-	}
-	return host
 }

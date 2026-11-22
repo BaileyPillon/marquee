@@ -1,0 +1,97 @@
+{
+  "language": "nl",
+  "register": "je/jouw (informeel en vriendelijk)",
+  "terms": {
+    "ask": {
+      "use": "aanvraag (zelfstandig naamwoord), aanvragen (werkwoord); het scherm Requests is Aanvragen",
+      "avoid": [
+        "verzoek"
+      ]
+    },
+    "approve": {
+      "use": "goedkeuren",
+      "avoid": []
+    },
+    "decline": {
+      "use": "afwijzen",
+      "avoid": [
+        "weigeren",
+        "afslaan"
+      ]
+    },
+    "owner": {
+      "use": "eigenaar",
+      "avoid": [
+        "beheerder"
+      ]
+    },
+    "admin": {
+      "use": "Admin",
+      "avoid": [
+        "Beheerder"
+      ]
+    },
+    "member": {
+      "use": "lid",
+      "avoid": []
+    },
+    "library": {
+      "use": "bibliotheek",
+      "avoid": [
+        "collectie",
+        "mediatheek"
+      ]
+    },
+    "download app": {
+      "use": "downloadapp",
+      "avoid": [
+        "downloadclient",
+        "downloadprogramma"
+      ]
+    },
+    "media server": {
+      "use": "mediaserver",
+      "avoid": []
+    },
+    "source": {
+      "use": "bron",
+      "avoid": []
+    },
+    "release": {
+      "use": "release",
+      "avoid": [
+        "uitgave"
+      ]
+    },
+    "grab": {
+      "use": "Ophalen",
+      "avoid": [
+        "Grijpen",
+        "Pakken"
+      ]
+    },
+    "4K copy": {
+      "use": "4K-kopie",
+      "avoid": [
+        "4K-versie"
+      ]
+    },
+    "watchlist": {
+      "use": "kijklijst",
+      "avoid": [
+        "watchlist"
+      ]
+    },
+    "monitor": {
+      "use": "Volgen",
+      "avoid": [
+        "Monitoren"
+      ]
+    }
+  },
+  "notes": [
+    "Marquee blijft Marquee.",
+    "Korte knoppen met de onbepaalde wijs ('Toevoegen', 'Opslaan')."
+  ],
+  "sameAsEnglish": []
+}

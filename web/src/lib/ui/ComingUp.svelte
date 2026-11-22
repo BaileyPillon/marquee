@@ -145,8 +145,7 @@
   }
   .bar {
     position: absolute;
-    left: 0;
-    right: 0;
+    inset-inline: 0;
     bottom: 0;
     height: 4px;
     background: var(--track-faint);
@@ -166,7 +165,7 @@
       display: inline-flex;
       align-items: center;
       min-height: 44px;
-      padding-left: 12px;
+      padding-inline-start: 12px;
     }
     .scroller {
       margin: 0 -16px;

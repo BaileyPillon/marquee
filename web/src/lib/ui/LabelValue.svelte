@@ -54,9 +54,11 @@
     justify-content: space-between;
     gap: 16px;
   }
+  /* A long translated label wraps before it squeezes the value into a sliver. */
   dt {
     margin: 0;
-    flex: 0 0 auto;
+    flex: 0 1 auto;
+    min-width: 0;
     font-size: 13px;
     font-weight: 500;
     line-height: 18px;
@@ -64,7 +66,9 @@
   }
   dd {
     margin: 0;
-    text-align: right;
+    flex: 0 0 auto;
+    max-width: 55%;
+    text-align: end;
     font-size: 14px;
     font-weight: 600;
     line-height: 18px;

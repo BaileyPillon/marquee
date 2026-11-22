@@ -79,14 +79,14 @@
     border-radius: 50%;
   }
   .big {
-    right: -40px;
+    inset-inline-end: -40px;
     top: -40px;
     width: 120px;
     height: 120px;
     border: 1px solid rgba(242, 237, 228, 0.12);
   }
   .small {
-    right: -20px;
+    inset-inline-end: -20px;
     top: -20px;
     width: 80px;
     height: 80px;
@@ -95,7 +95,7 @@
   /* The badge and the bar sit above the cover art; the type beneath it. */
   .top {
     position: absolute;
-    left: 12px;
+    inset-inline-start: 12px;
     top: 12px;
     z-index: 2;
     display: flex;
@@ -131,8 +131,7 @@
   }
   .progress {
     position: absolute;
-    left: 0;
-    right: 0;
+    inset-inline: 0;
     bottom: 0;
     z-index: 2;
     height: 5px;

@@ -367,6 +367,12 @@ func (s *Service) scanLocked(ctx context.Context, f Folder) (sum ScanSummary, er
 					sum.Matched++
 					writes = append(writes, w)
 				}
+			} else if row.State == StateMatched && row.NoTrack && f.Kind == KindMusic && m.enabled() {
+				// A track scanned before the albums were known (or loaded) gets
+				// its track now.
+				if w := s.classify(m, f.Kind, ff, &row); w.State == StateMatched && w.TrackID != nil {
+					writes = append(writes, w)
+				}
 			}
 		}
 	}

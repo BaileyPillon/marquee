@@ -1,0 +1,96 @@
+{
+  "language": "de",
+  "register": "du (informal, friendly), as in the English",
+  "terms": {
+    "ask": {
+      "use": "Anfrage (Substantiv), anfragen (Verb); die Seite 'Requests' heißt 'Anfragen'",
+      "avoid": [
+        "Wunsch",
+        "Bitte um"
+      ]
+    },
+    "approve": {
+      "use": "genehmigen",
+      "avoid": [
+        "zustimmen"
+      ]
+    },
+    "decline": {
+      "use": "ablehnen",
+      "avoid": []
+    },
+    "owner": {
+      "use": "Besitzer (Rolle), 'dem Besitzer' im Satz",
+      "avoid": [
+        "Eigentümer",
+        "Inhaber"
+      ]
+    },
+    "admin": {
+      "use": "Admin",
+      "avoid": [
+        "Administrator"
+      ]
+    },
+    "member": {
+      "use": "Mitglied",
+      "avoid": []
+    },
+    "library": {
+      "use": "Mediathek (Bibliotheksordner = Mediathek-Ordner)",
+      "avoid": [
+        "Bibliothek"
+      ]
+    },
+    "download app": {
+      "use": "Download-App",
+      "avoid": [
+        "Download-Client",
+        "Downloader"
+      ]
+    },
+    "media server": {
+      "use": "Medienserver",
+      "avoid": []
+    },
+    "source": {
+      "use": "Quelle (Torznab/Newznab-Feed)",
+      "avoid": []
+    },
+    "release": {
+      "use": "Release",
+      "avoid": [
+        "Veröffentlichung"
+      ]
+    },
+    "grab": {
+      "use": "Laden",
+      "avoid": [
+        "Schnappen",
+        "Greifen"
+      ]
+    },
+    "4K copy": {
+      "use": "4K-Kopie",
+      "avoid": [
+        "4K-Version"
+      ]
+    },
+    "watchlist": {
+      "use": "Merkliste",
+      "avoid": [
+        "Watchlist"
+      ]
+    },
+    "monitor": {
+      "use": "Überwachen",
+      "avoid": []
+    }
+  },
+  "notes": [
+    "Marquee bleibt Marquee.",
+    "Kurze Buttons: Verben im Infinitiv ('Hinzufügen', 'Speichern').",
+    "Fehlermeldungen freundlich, ohne Schuldzuweisung."
+  ],
+  "sameAsEnglish": []
+}

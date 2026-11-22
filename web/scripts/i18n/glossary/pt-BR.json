@@ -1,0 +1,102 @@
+{
+  "language": "pt-BR",
+  "register": "você (informal e cordial)",
+  "terms": {
+    "ask": {
+      "use": "pedido (substantivo), pedir (verbo); a tela 'Requests' é 'Pedidos'",
+      "avoid": [
+        "solicitação",
+        "requisição"
+      ]
+    },
+    "approve": {
+      "use": "aprovar",
+      "avoid": [
+        "autorizar"
+      ]
+    },
+    "decline": {
+      "use": "recusar",
+      "avoid": [
+        "declinar",
+        "negar"
+      ]
+    },
+    "owner": {
+      "use": "proprietário",
+      "avoid": [
+        "dono"
+      ]
+    },
+    "admin": {
+      "use": "Admin",
+      "avoid": [
+        "Administrador"
+      ]
+    },
+    "member": {
+      "use": "membro",
+      "avoid": []
+    },
+    "library": {
+      "use": "biblioteca",
+      "avoid": [
+        "mediateca",
+        "livraria"
+      ]
+    },
+    "download app": {
+      "use": "app de download",
+      "avoid": [
+        "cliente de download",
+        "aplicativo de download"
+      ]
+    },
+    "media server": {
+      "use": "servidor de mídia",
+      "avoid": [
+        "servidor multimídia"
+      ]
+    },
+    "source": {
+      "use": "fonte",
+      "avoid": []
+    },
+    "release": {
+      "use": "lançamento (de busca: 'release')",
+      "avoid": []
+    },
+    "grab": {
+      "use": "Baixar",
+      "avoid": [
+        "Pegar",
+        "Capturar"
+      ]
+    },
+    "4K copy": {
+      "use": "cópia 4K",
+      "avoid": [
+        "versão 4K"
+      ]
+    },
+    "watchlist": {
+      "use": "lista para assistir",
+      "avoid": [
+        "watchlist",
+        "lista de exibição"
+      ]
+    },
+    "monitor": {
+      "use": "Monitorar",
+      "avoid": [
+        "Vigiar"
+      ]
+    }
+  },
+  "notes": [
+    "Marquee continua Marquee.",
+    "Botões curtos no infinitivo ('Adicionar', 'Salvar').",
+    "Brasileiro: 'arquivo', 'tela', 'celular'."
+  ],
+  "sameAsEnglish": []
+}

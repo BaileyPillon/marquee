@@ -16,6 +16,8 @@ import type { PanelRow } from '../lib/core/views';
   import PeoplePanel from './requests/PeoplePanel.svelte';
   import AlertsPanel from './settings/AlertsPanel.svelte';
   import ClaudePanel from './settings/ClaudePanel.svelte';
+  import LanguagePanel from './settings/LanguagePanel.svelte';
+  import AboutPanel from './settings/AboutPanel.svelte';
   import ConnectionPanel from './settings/ConnectionPanel.svelte';
   import DownloadAppsPanel from './settings/DownloadAppsPanel.svelte';
   import FoldersPanel from './settings/FoldersPanel.svelte';
@@ -23,6 +25,7 @@ import type { PanelRow } from '../lib/core/views';
   import ProfilePanel from './settings/ProfilePanel.svelte';
   import ProfilesPanel from './settings/ProfilesPanel.svelte';
   import SourcesPanel from './settings/SourcesPanel.svelte';
+  import SubtitlesPanel from './settings/SubtitlesPanel.svelte';
   import TitleInfoPanel from './settings/TitleInfoPanel.svelte';
   import WatchlistsPanel from './settings/WatchlistsPanel.svelte';
 
@@ -40,8 +43,8 @@ import type { PanelRow } from '../lib/core/views';
   const toaster = createToaster();
   const note = (message: string): void => toaster.show(message);
 
-  // Connections, Quality rules, People & limits and Claude & apps are live. Subtitles, Language and
-  // About say they are coming.
+  // Every tab is live: Connections, Library folders, Title info, Quality rules, People & limits,
+  // Subtitles, Claude & apps, Language and About.
   const tabs = $derived<TabItem[]>([
     { id: 'connections', label: t('settings.tab.connections') },
     { id: 'folders', label: t('settings.tab.folders') },
@@ -134,8 +137,14 @@ import type { PanelRow } from '../lib/core/views';
     {/if}
   {:else if tab === 'people'}
     <div class="narrow"><PeoplePanel canEdit={isOwner} onsaved={() => note(t('limits.saved'))} /></div>
+  {:else if tab === 'subtitles'}
+    <SubtitlesPanel {isOwner} onnote={note} />
   {:else if tab === 'claude'}
     <ClaudePanel onnote={note} />
+  {:else if tab === 'language'}
+    <div class="language"><LanguagePanel /></div>
+  {:else if tab === 'about'}
+    <AboutPanel {isOwner} onnote={note} />
   {:else if tab !== 'connections'}
     <Panel tag="div" padding="18px">
       <p class="soon"><span class="sr-only">{tabName}: </span>{t('settings.soon')}</p>
@@ -179,6 +188,9 @@ import type { PanelRow } from '../lib/core/views';
   }
   .narrow {
     max-width: 560px;
+  }
+  .language {
+    max-width: 880px;
   }
   .soon {
     font-size: 14px;

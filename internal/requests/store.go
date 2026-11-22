@@ -133,10 +133,11 @@ func (q queries) item(ctx context.Context, id int64) (Item, error) {
 
 // itemFilter selects requests for list.
 type itemFilter struct {
-	UserID int64 // 0 = everyone
-	State  string
-	Limit  int
-	Offset int
+	UserID  int64 // 0 = everyone
+	TitleID int64 // 0 = every title
+	State   string
+	Limit   int
+	Offset  int
 }
 
 func (q queries) list(ctx context.Context, f itemFilter) ([]Item, int, error) {
@@ -147,6 +148,10 @@ func (q queries) list(ctx context.Context, f itemFilter) ([]Item, int, error) {
 	if f.UserID != 0 {
 		where = append(where, `r.user_id = ?`)
 		args = append(args, f.UserID)
+	}
+	if f.TitleID != 0 {
+		where = append(where, `r.title_id = ?`)
+		args = append(args, f.TitleID)
 	}
 	if f.State != "" {
 		where = append(where, `r.state = ?`)
@@ -589,6 +594,16 @@ func (q queries) users(ctx context.Context) ([]userRow, error) {
 		out = append(out, u)
 	}
 	return out, rows.Err()
+}
+
+// ownerName is the owner's name ("" when nobody has set Marquee up yet).
+func (q queries) ownerName(ctx context.Context) (string, error) {
+	var name string
+	err := q.x.QueryRowContext(ctx, `SELECT name FROM users WHERE role = 'owner' LIMIT 1`).Scan(&name)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", nil
+	}
+	return name, err
 }
 
 func (q queries) user(ctx context.Context, id int64) (userRow, error) {

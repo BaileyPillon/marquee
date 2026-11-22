@@ -23,6 +23,7 @@
     pauseDownload,
     removeDownload,
     resumeDownload,
+    IMPORT_STEPS,
     type DownloadEvent,
     type DownloadsSummary,
     type DownloadView,
@@ -30,7 +31,7 @@
   import { debounce, onEvent, onResync } from '../lib/core/events';
   import { dotOf, stateText, statsOf } from '../lib/core/downloadWords';
   import { formatBytes, formatWhen, qualityLabel } from '../lib/core/format';
-  import { t } from '../lib/core/i18n';
+  import { formatList, t } from '../lib/core/i18n';
   import { isDesktop } from '../lib/core/media';
   import { session } from '../lib/core/session.svelte';
   import { listMediaServers } from '../lib/core/serversApi';
@@ -77,6 +78,12 @@
 
   function onDownloadEvent(raw: unknown): void {
     const ev = raw as DownloadEvent;
+    if (ev.type === 'state' && ev.id !== undefined && ev.importStep !== undefined) {
+      // The import moved to its next step: show it at once; the reload below fills in the rest.
+      active = active.map((d) =>
+        d.id === ev.id ? { ...d, state: ev.state ?? d.state, importStep: ev.importStep } : d,
+      );
+    }
     if (ev.type === 'progress' && ev.items) {
       // Progress is batched: move the bars at once, no reload.
       const byId = new Map(ev.items.map((i) => [i.id, i]));
@@ -133,7 +140,7 @@
       ? connected.length > 0
         ? t('downloads.summary', {
             ...counts,
-            apps: new Intl.ListFormat(undefined, { style: 'long', type: 'conjunction' }).format(connected),
+            apps: formatList(connected),
           })
         : t('downloads.summaryNoApps', counts)
       : undefined,
@@ -216,11 +223,26 @@
     detail: string;
   }
 
+  /** The last part of a path, whichever way it is written. */
+  function lastPart(path: string): string {
+    return path.split(/[\\/]/).filter(Boolean).pop() ?? path;
+  }
+
+  /**
+   * The strip follows the step the importer reports (`importStep`: checking, renaming, moving,
+   * rescanning, done). Before it reports one (the download just finished and waits for its turn) the
+   * check is the next thing to happen. Steps before the current one are done, the current one is
+   * working, the rest wait.
+   */
   const steps = $derived.by<Step[]>(() => {
     const d = importing;
     if (!d) return [];
     const server = serverName || t('downloads.step.yourServer');
-    const busy = d.state === 'importing';
+    const at = d.importStep ? IMPORT_STEPS.indexOf(d.importStep) : -1; // -1: not started
+    const stateOf = (index: number): ImportStepState => (at > index ? 'done' : at === index ? 'working' : 'pending');
+    // "Checked" is the first step: it is working while the importer has not said anything yet.
+    const checkState: ImportStepState = at < 0 ? 'working' : stateOf(0);
+    const target = d.importTarget ?? '';
     return [
       {
         label: t('downloads.step.downloaded'),
@@ -232,15 +254,43 @@
       },
       {
         label: t('downloads.step.checked'),
-        state: 'working',
-        detail: busy ? t('downloads.step.checkedBusy') : t('downloads.step.checkedWaiting'),
+        state: checkState,
+        detail:
+          checkState === 'done'
+            ? t('downloads.step.checkedDone')
+            : d.state === 'importing'
+              ? t('downloads.step.checkedBusy')
+              : t('downloads.step.checkedWaiting'),
       },
-      { label: t('downloads.step.renamed'), state: 'pending', detail: t('downloads.step.afterCheck') },
-      { label: t('downloads.step.moved'), state: 'pending', detail: t('downloads.step.afterRename') },
+      {
+        label: t('downloads.step.renamed'),
+        state: stateOf(1),
+        detail:
+          stateOf(1) === 'pending'
+            ? t('downloads.step.afterCheck')
+            : target
+              ? t(stateOf(1) === 'done' ? 'downloads.step.renamedDone' : 'downloads.step.renamedBusy', {
+                  name: lastPart(target),
+                })
+              : t(stateOf(1) === 'done' ? 'downloads.step.renamedDonePlain' : 'downloads.step.renamedBusyPlain'),
+      },
+      {
+        label: t('downloads.step.moved'),
+        state: stateOf(2),
+        detail:
+          stateOf(2) === 'pending'
+            ? t('downloads.step.afterRename')
+            : target
+              ? t(stateOf(2) === 'done' ? 'downloads.step.movedDone' : 'downloads.step.movedBusy', { where: target })
+              : t(stateOf(2) === 'done' ? 'downloads.step.movedDonePlain' : 'downloads.step.movedBusyPlain'),
+      },
       {
         label: t('downloads.step.rescanned', { server }),
-        state: 'pending',
-        detail: t('downloads.step.afterMove'),
+        state: stateOf(3),
+        detail:
+          stateOf(3) === 'pending'
+            ? t('downloads.step.afterMove')
+            : t(stateOf(3) === 'done' ? 'downloads.step.rescannedDone' : 'downloads.step.rescannedBusy', { server }),
       },
     ];
   });
@@ -248,16 +298,29 @@
   // ---- history ----
   const outcomeIcon: Record<string, IconName> = {
     imported: 'check',
+    upgraded: 'upgrade',
     failed: 'warning',
     removed: 'trash',
   };
 
+  /** How a finished download ended: the server says (`outcome`); an older one is read from the state. */
+  function outcomeOf(d: DownloadView): string {
+    if (d.outcome) return d.outcome;
+    if (d.state === 'failed' || d.state === 'removed') return d.state;
+    return 'imported';
+  }
+
   function outcomeText(d: DownloadView): string {
-    if (d.state === 'failed') {
-      return d.error ? t('downloads.outcome.failedWhy', { why: d.error }) : t('downloads.outcome.failed');
+    switch (outcomeOf(d)) {
+      case 'failed':
+        return d.error ? t('downloads.outcome.failedWhy', { why: d.error }) : t('downloads.outcome.failed');
+      case 'removed':
+        return t('downloads.outcome.removed');
+      case 'upgraded':
+        return t('downloads.outcome.upgraded');
+      default:
+        return t('downloads.outcome.imported');
     }
-    if (d.state === 'removed') return t('downloads.outcome.removed');
-    return t('downloads.outcome.imported');
   }
 
   const columns: DataColumn[] = [
@@ -512,7 +575,7 @@
                   <span class="h-when">{formatWhen(row.completedAt ?? row.updatedAt)}</span>
                 </div>
                 <span class="h-what {row.state}">
-                  <Icon name={outcomeIcon[row.state] ?? 'check'} size={18} stroke={2} />
+                  <Icon name={outcomeIcon[outcomeOf(row)] ?? 'check'} size={18} stroke={2} />
                   <span class="h-text">{outcomeText(row)}</span>
                 </span>
                 <span class="h-soft">
@@ -541,7 +604,7 @@
                 <span class="h-title">{nameOf(row)} · {qualityLabel(row.quality)}</span>
               {:else if column.id === 'what'}
                 <span class="h-what {row.state}">
-                  <Icon name={outcomeIcon[row.state] ?? 'check'} size={18} stroke={2} />
+                  <Icon name={outcomeIcon[outcomeOf(row)] ?? 'check'} size={18} stroke={2} />
                   <span class="h-text">{outcomeText(row)}</span>
                 </span>
               {:else if column.id === 'source'}

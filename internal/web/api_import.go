@@ -29,6 +29,8 @@ func (s *Server) registerImport(api *http.ServeMux) {
 		api.HandleFunc("POST /api/v1/downloads/{id}/import", s.guarded(control, s.handleDownloadImport))
 		api.HandleFunc("GET /api/v1/import/status", s.guarded(control, s.handleImportStatus))
 	}
+	// Rename and delete a file that is already in the library (api_library_files.go).
+	s.registerLibraryFiles(api)
 }
 
 const (

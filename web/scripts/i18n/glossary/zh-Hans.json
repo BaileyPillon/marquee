@@ -1,0 +1,100 @@
+{
+  "language": "zh-Hans",
+  "register": "用“你”，口吻友好简洁；按钮用动词或短语（“添加”“保存”）。",
+  "terms": {
+    "ask": {
+      "use": "请求（名词/动词）；页面 'Requests' 也叫“请求”",
+      "avoid": [
+        "申请",
+        "点播"
+      ]
+    },
+    "approve": {
+      "use": "批准",
+      "avoid": []
+    },
+    "decline": {
+      "use": "拒绝",
+      "avoid": [
+        "驳回"
+      ]
+    },
+    "owner": {
+      "use": "所有者",
+      "avoid": [
+        "站长",
+        "拥有者"
+      ]
+    },
+    "admin": {
+      "use": "管理员",
+      "avoid": []
+    },
+    "member": {
+      "use": "成员",
+      "avoid": [
+        "会员"
+      ]
+    },
+    "library": {
+      "use": "媒体库",
+      "avoid": [
+        "图书馆",
+        "资料库"
+      ]
+    },
+    "download app": {
+      "use": "下载应用",
+      "avoid": [
+        "下载器",
+        "下载客户端"
+      ]
+    },
+    "media server": {
+      "use": "媒体服务器",
+      "avoid": []
+    },
+    "source": {
+      "use": "来源",
+      "avoid": []
+    },
+    "release": {
+      "use": "资源（搜索到的发布）",
+      "avoid": [
+        "发行版",
+        "发布版"
+      ]
+    },
+    "grab": {
+      "use": "获取",
+      "avoid": [
+        "抓取"
+      ]
+    },
+    "4K copy": {
+      "use": "4K 副本",
+      "avoid": [
+        "4K 版本"
+      ]
+    },
+    "watchlist": {
+      "use": "待看清单",
+      "avoid": [
+        "关注列表",
+        "观看列表"
+      ]
+    },
+    "monitor": {
+      "use": "监控",
+      "avoid": [
+        "监视"
+      ]
+    }
+  },
+  "notes": [
+    "Marquee 保持 Marquee。",
+    "中文与英文字母、数字之间加一个半角空格（如“4K 副本”）。",
+    "使用全角标点；省略号用“……”或 …（保持与英文一致使用 …）。"
+  ],
+  "sameAsEnglish": []
+}

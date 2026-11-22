@@ -61,6 +61,11 @@ type trackItem struct {
 type albumItem struct {
 	titles.Album
 	Tracks []trackItem `json:"tracks"` // hides the Album's own list
+	// InLibrary is true when the album has a file on disk: a track of it is matched,
+	// or (a file scanned before the tracks were known) its folder names the album.
+	InLibrary bool `json:"inLibrary"`
+	// HaveTracks is how many of its tracks have a file.
+	HaveTracks int `json:"haveTracks"`
 }
 
 // detailItem is a title with everything under it and what is on disk.
@@ -128,12 +133,25 @@ func (s *Server) detailView(ctx context.Context, d *titles.Detail) (*detailItem,
 		f := eps[e.ID]
 		out.Episodes[i] = episodeItem{Episode: e, HasFile: f.Count > 0, Quality: f.Quality, Size: f.Bytes}
 	}
+	// Which albums have a file, by the same rule the music search uses to say
+	// what is missing.
+	var onDisk map[int64]bool
+	if d.Kind == titles.KindArtist && s.Requests != nil && s.Library != nil {
+		var err error
+		if onDisk, err = s.Requests.AlbumsOnDisk(ctx, d.ID); err != nil {
+			return nil, err
+		}
+	}
 	for i, a := range d.Albums {
 		item := albumItem{Album: a, Tracks: make([]trackItem, len(a.Tracks))}
 		for j, t := range a.Tracks {
 			f := tracks[t.ID]
 			item.Tracks[j] = trackItem{Track: t, HasFile: f.Count > 0, Quality: f.Quality, Size: f.Bytes}
+			if f.Count > 0 {
+				item.HaveTracks++
+			}
 		}
+		item.InLibrary = onDisk[a.ID] || item.HaveTracks > 0
 		out.Albums[i] = item
 	}
 	return out, nil

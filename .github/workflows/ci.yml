@@ -1,0 +1,149 @@
+name: CI
+
+# Runs on every push to a branch and on every pull request.
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+# The least a build needs: read the code. Nothing here writes to the repository.
+permissions:
+  contents: read
+
+# A newer push to the same branch makes the older run pointless.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CGO_ENABLED: "0"
+
+jobs:
+  go:
+    name: Go vet and test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod   # go 1.27
+          cache: true               # module and build caches, keyed on go.sum
+
+      # The binary embeds web/dist, which is built by the web job and is not in
+      # the repository. A one-line page is enough for vet and the tests.
+      - name: Placeholder for the embedded UI
+        run: |
+          mkdir -p web/dist
+          printf '<!doctype html><title>Marquee</title>' > web/dist/index.html
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: go test
+        run: go test ./...
+
+  web:
+    name: Web check and build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - run: npm ci
+
+      - name: Type and Svelte check
+        run: npm run check
+
+      - name: Build
+        run: npm run build
+
+  build:
+    name: Full build (scripts/build.sh)
+    needs: [go, web]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      # UI, precompression, then linux/amd64, linux/arm64, linux/armv7,
+      # darwin/arm64 and windows/amd64 archives, SHA256SUMS and a size table.
+      - name: Build every platform
+        run: bash scripts/build.sh
+
+      - name: Upload the linux/amd64 archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: marquee-linux-amd64
+          path: bin/marquee_*_linux_amd64.tar.gz
+          retention-days: 14
+          if-no-files-found: error
+
+      # The headline size target: the Linux release archive stays at 17 MiB or less.
+      - name: Check the 17 MiB budget
+        run: |
+          set -euo pipefail
+          archive="$(ls bin/marquee_*_linux_amd64.tar.gz)"
+          size="$(stat -c %s "$archive")"
+          limit=$((17 * 1024 * 1024))
+          echo "$archive is $size bytes (limit $limit)"
+          if [ "$size" -gt "$limit" ]; then
+            echo "::error::$archive is $size bytes, over the 17 MiB budget ($limit bytes)"
+            exit 1
+          fi
+
+  image:
+    name: Container image (build and smoke test, not pushed)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build the image for linux/amd64
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/Dockerfile
+          platforms: linux/amd64
+          load: true
+          push: false
+          build-args: VERSION=ci
+          tags: marquee:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # The image has no shell, so this runs it for real: it starts as user 65532,
+      # makes its files in the (anonymous, image-initialised) /config volume, and
+      # answers the health endpoint.
+      - name: Smoke test
+        run: |
+          set -euo pipefail
+          docker run --rm marquee:ci --version
+          docker run -d --name marquee-ci -p 6464:6464 marquee:ci
+          trap 'docker logs marquee-ci || true; docker rm -f marquee-ci >/dev/null 2>&1 || true' EXIT
+          ok=0
+          for _ in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:6464/api/v1/health; then ok=1; break; fi
+            sleep 1
+          done
+          echo
+          [ "$ok" = 1 ]

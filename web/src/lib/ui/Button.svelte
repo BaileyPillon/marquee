@@ -68,40 +68,44 @@
     justify-content: center;
     gap: 8px;
     box-sizing: border-box;
-    height: 44px;
-    padding: 0 20px;
+    /* A minimum, not a fixed height: a long label (German, Finnish...) wraps onto a second line, and
+       breaks inside a word only when one word is wider than the button. Nothing is cut off. */
+    min-height: 44px;
+    padding: 7px 20px;
     border-radius: var(--radius-sm);
     font-family: var(--font-sans);
     font-size: 14px;
     font-weight: 600;
-    line-height: 1;
+    line-height: 1.2;
+    text-align: center;
     text-decoration: none;
-    white-space: nowrap;
+    overflow-wrap: anywhere;
+    hyphens: auto;
     cursor: pointer;
     transition: background-color 0.12s ease;
   }
   .xs {
-    height: 30px;
-    padding: 0 11px;
+    min-height: 30px;
+    padding: 5px 11px;
     font-size: 12.5px;
   }
   .compact {
-    height: 34px;
-    padding: 0 14px;
+    min-height: 34px;
+    padding: 6px 14px;
     font-size: 13px;
   }
   .sm {
-    height: 36px;
-    padding: 0 14px;
+    min-height: 36px;
+    padding: 6px 14px;
     font-size: 13px;
   }
   .lg {
-    height: 48px;
+    min-height: 48px;
     border-radius: var(--radius-lg);
     font-size: 16px;
   }
   .xl {
-    height: 56px;
+    min-height: 56px;
     border-radius: var(--radius-lg);
     font-size: 17px;
     font-weight: 700;
@@ -111,7 +115,8 @@
     padding: 0;
   }
   .pill {
-    padding: 0 22px 0 18px;
+    padding-block: 7px;
+    padding-inline: 18px 22px;
     border-radius: var(--radius-pill);
   }
   .block {

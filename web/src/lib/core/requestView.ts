@@ -1,7 +1,7 @@
 // How a request reads in words: who asked, what for, where it stands. Pure functions over what
 // `GET /requests` sends, used by the Requests page, the phone card, Home and the title pages.
 import { formatBytes, formatDayLabel, kindLabel } from './format';
-import { t } from './i18n';
+import { formatDate, formatList, formatNumber, lowerCase, t } from './i18n';
 import { libraryIndex } from './libraryIndex.svelte';
 import { peopleState } from './people.svelte';
 import { uiKind } from './posterItems';
@@ -37,7 +37,9 @@ export function askWhat(item: RequestItem): string {
   if (item.title.kind === 'show') {
     const seasons = scope.seasons ?? [];
     if (seasons.length === 1) parts.push(t('requests.scope.season', { n: seasons[0] ?? 0 }));
-    else if (seasons.length > 1) parts.push(t('requests.scope.seasons', { list: seasons.join(', ') }));
+    else if (seasons.length > 1) {
+      parts.push(t('requests.scope.seasons', { list: formatList(seasons.map((n) => formatNumber(n))) }));
+    }
     else parts.push(t('requests.scope.allEpisodes'));
   } else if (item.title.kind === 'artist') {
     const albums = scope.albums ?? [];
@@ -59,11 +61,9 @@ export function briefLine(item: RequestItem): string {
 
 /** "Priya · today 08:30" for the card header. */
 export function whoWhen(item: RequestItem): string {
-  const when = formatDayLabel(item.createdAt).toLowerCase();
+  const when = lowerCase(formatDayLabel(item.createdAt));
   const time = new Date(item.createdAt);
-  const clock = Number.isNaN(time.getTime())
-    ? ''
-    : new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' }).format(time);
+  const clock = Number.isNaN(time.getTime()) ? '' : formatDate(time, { hour: '2-digit', minute: '2-digit' });
   return t('requests.whoWhen', { who: askerFirst(item), when, time: clock });
 }
 

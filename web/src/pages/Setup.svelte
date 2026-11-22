@@ -299,7 +299,7 @@
   }
   .inline-link {
     align-self: flex-start;
-    margin-left: 24px;
+    margin-inline-start: 24px;
     font-size: 13px;
     font-weight: 600;
   }

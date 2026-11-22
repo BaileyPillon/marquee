@@ -93,6 +93,10 @@ export interface Album {
   monitored: boolean;
   coverRef: string;
   tracks: Track[];
+  /** The album has a file in the library (a matched track, or a folder that names it). Left out by an older server. */
+  inLibrary?: boolean;
+  /** How many of its tracks have a file. */
+  haveTracks?: number;
 }
 
 export interface Person {
@@ -393,6 +397,8 @@ export type AskQuality = 'hd' | 'uhd';
 export interface Usage {
   used: number;
   limit: number | null;
+  /** True when there is no limit (`limit` is then null). Older servers leave it out. */
+  unlimited?: boolean;
   /** When the next ask drops out of the window; null when nothing was asked. */
   resetsAt?: string | null;
 }
@@ -401,7 +407,7 @@ export interface RequestsSummary {
   waitingForYou: number;
   mine: { pending: number; approved: number };
   usage: { hd: Usage; uhd: Usage };
-  /** Not sent yet: the owner's name, so a member's toast can say who must say yes. */
+  /** The owner's name, so a member's screen can say who must say yes. */
   owner?: { name: string };
 }
 
@@ -483,6 +489,18 @@ export function failureKeyForCode(code: string): MessageKey {
       return 'error.duplicate';
     case 'limit_reached':
       return 'error.limitReached';
+    case 'invalid_limit':
+      return 'error.invalidLimit';
+    case 'not_matched':
+      return 'error.notMatched';
+    case 'file_missing':
+      return 'error.fileMissing';
+    case 'name_taken':
+      return 'error.nameTaken';
+    case 'outside_library':
+      return 'error.outsideLibrary';
+    case 'import_running':
+      return 'error.importRunning';
     default:
       return 'error.generic';
   }

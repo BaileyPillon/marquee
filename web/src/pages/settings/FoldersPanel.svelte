@@ -247,7 +247,7 @@
 
   function counts(f: Folder): string {
     const parts = [
-      f.files === 1 ? t('folders.filesOne') : t('folders.files', { n: f.files }),
+      t('folders.files', { n: f.files }),
       t('folders.matched', { n: f.matched }),
       t('folders.unmatched', { n: f.unmatched }),
     ];

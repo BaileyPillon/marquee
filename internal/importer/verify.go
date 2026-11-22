@@ -28,6 +28,8 @@ type plan struct {
 	titleID  int64
 	episodes []int64 // episode ids (shows)
 	epNums   []int   // episode numbers (shows), for the name
+	trackID  int64   // the catalog track (music), 0 when the match was not sure
+	albumID  int64   // the catalog album (music)
 	season   int
 	quality  string // "Bluray-1080p"; for music "FLAC"
 	parsed   parse.Release
@@ -162,8 +164,11 @@ func parseAll(list []string) []parse.Release {
 type verifier struct {
 	d       *titles.Detail
 	root    string
-	release string // what the download was grabbed as
-	wanted  map[int64]bool
+	release string         // what the download was grabbed as
+	wanted  map[int64]bool // episode ids (shows) or album ids (artists) the download is for
+
+	folderHint, releaseHint *parse.MusicRelease // music: what the download's own names say
+	hintsDone               bool
 }
 
 func newVerifier(d *titles.Detail, root, release string, episodeIDs []int64) *verifier {
@@ -371,6 +376,64 @@ func (v *verifier) show(f srcFile) (plan, bool, string) {
 
 // ---- music ---------------------------------------------------------------------
 
+// musicHints reads the download's own names the way a release is named: its
+// folder (nil when the download is a single file) and the release it was
+// grabbed as. A scene-style folder says the artist and album when the track
+// paths inside it do not.
+func (v *verifier) musicHints() (folder, release *parse.MusicRelease) {
+	if !v.hintsDone {
+		v.hintsDone = true
+		if v.root != "" {
+			if base := filepath.Base(v.root); base != "" && base != "." && !strings.HasPrefix(base, ".marquee-extract") && !strings.HasPrefix(base, "marquee-extract") {
+				h := parse.ParseMusicRelease(base)
+				v.folderHint = &h
+			}
+		}
+		if v.release != "" {
+			h := parse.ParseMusicRelease(v.release)
+			v.releaseHint = &h
+		}
+	}
+	return v.folderHint, v.releaseHint
+}
+
+// albumOf finds the catalog album a track file belongs to: by the album its
+// path names, then the album its folder names (a scene name the path reader
+// could not split). Only when neither names an album at all does the release
+// the download was grabbed as have a say: a folder that names another album is
+// not overruled by the release's label.
+func (v *verifier) albumOf(pathAlbum string) *titles.Album {
+	folder, release := v.musicHints()
+	names := []string{pathAlbum}
+	if folder != nil && !folder.Discography {
+		names = append(names, folder.Album)
+	}
+	named := false
+	for _, n := range names {
+		if strings.TrimSpace(n) != "" {
+			named = true
+		}
+	}
+	if !named && release != nil && !release.Discography {
+		names = append(names, release.Album)
+	}
+	for _, n := range names {
+		if strings.TrimSpace(n) == "" {
+			continue
+		}
+		// The album the owner asked for comes first: two editions of an artist's
+		// album can share a name.
+		for pass := 0; pass < 2; pass++ {
+			for i := range v.d.Albums {
+				al := &v.d.Albums[i]
+				if (pass == 0) == v.wanted[al.ID] && parse.AlbumNameMatches(al.Name, n) {
+					return al
+				}
+			}
+		}
+	}
+	return nil
+}
 func (v *verifier) music(f srcFile) (plan, bool, string) {
 	// Read the path from the download's own folder (so the album folder counts),
 	// or the bare file name when the download is one file.
@@ -381,43 +444,72 @@ func (v *verifier) music(f srcFile) (plan, bool, string) {
 		}
 	}
 	mr := parse.ParseMusic(rel)
-	if mr.Artist != "" && !nameMatches(v.d, mr.Artist) {
+	if mr.Artist != "" && !nameMatches(v.d, mr.Artist) && !v.hintsNameArtist() {
 		return plan{}, false, fmt.Sprintf("This is by %q, not %q", mr.Artist, v.d.Name)
 	}
 	if mr.Track <= 0 {
 		return plan{}, false, "Cannot tell the track number from the name"
 	}
-	albumName, year, multi := mr.Album, mr.Year, mr.Disc > 1
-	title := mr.Title
-	for _, al := range v.d.Albums {
-		if albumName != "" && parse.Normalize(al.Name) == parse.Normalize(albumName) {
-			albumName = al.Name
-			if al.Year > 0 {
-				year = al.Year
-			}
-			for _, t := range al.Tracks {
-				if t.Disc > 1 {
-					multi = true
-				}
-			}
-			for _, t := range al.Tracks {
-				if t.Position == mr.Track && (mr.Disc == 0 || t.Disc == 0 || t.Disc == mr.Disc) && t.Name != "" {
-					title = t.Name
-					break
-				}
-			}
-			break
-		}
-	}
-	if albumName == "" {
+	al := v.albumOf(mr.Album)
+	if al == nil {
 		return plan{}, false, "Cannot tell which album this track is from"
 	}
+
+	// The track: by its number and title among the album's tracks.
+	tracks := make([]parse.CatalogTrack, len(al.Tracks))
+	multi := mr.Disc > 1
+	for i, t := range al.Tracks {
+		tracks[i] = parse.CatalogTrack{ID: t.ID, Disc: t.Disc, Position: t.Position, Name: t.Name}
+		if t.Disc > 1 {
+			multi = true
+		}
+	}
+	number, disc, title := mr.Track, mr.Disc, mr.Title
+	var trackID int64
+	switch tr, how := parse.MatchTrack(tracks, mr.Disc, mr.Track, mr.Title); how {
+	case parse.SureTrack:
+		// The catalog's number and title name the file (the title may have won over
+		// a shifted number).
+		trackID, number, title = tr.ID, tr.Position, tr.Name
+		if multi || tr.Disc > 1 {
+			disc = max(tr.Disc, 1)
+		}
+	case parse.WeakTrack:
+		// Probably this track, but the title disagrees: keep the file's own title
+		// and do not claim the track.
+	}
+	if title == "" {
+		title = mr.Title
+	}
+
 	quality := mr.QualityName()
+	if mr.Bitrate == "" {
+		folder, release := v.musicHints()
+		for _, h := range []*parse.MusicRelease{folder, release} {
+			if h != nil && h.Bitrate != "" && (h.Format == "" || h.Format == mr.Format) {
+				quality = mr.Format + "-" + h.Bitrate
+				break
+			}
+		}
+	}
 	return plan{
-		src: f, titleID: v.d.ID, quality: quality, label: fmt.Sprintf("%02d %s", mr.Track, title),
-		dest: TrackPath(TrackName{Artist: v.d.Name, Album: albumName, Year: year, Disc: mr.Disc, MultiDisc: multi,
-			Track: mr.Track, Title: title, Ext: filepath.Ext(f.Path)}),
+		src: f, titleID: v.d.ID, albumID: al.ID, trackID: trackID, quality: quality, label: fmt.Sprintf("%02d %s", number, title),
+		dest: TrackPath(TrackName{Artist: v.d.Name, Album: al.Name, Year: al.Year, Disc: disc, MultiDisc: multi,
+			Track: number, Title: title, Ext: filepath.Ext(f.Path)}),
 	}, true, ""
+}
+
+// hintsNameArtist reports whether the download's own names say the artist is
+// the title: a folder the path reader could not split (a scene name) is not
+// evidence against the artist.
+func (v *verifier) hintsNameArtist() bool {
+	folder, release := v.musicHints()
+	for _, h := range []*parse.MusicRelease{folder, release} {
+		if h != nil && h.Artist != "" && nameMatches(v.d, h.Artist) {
+			return true
+		}
+	}
+	return false
 }
 
 // libraryKind is the library folder kind that holds a title kind.

@@ -76,7 +76,7 @@
     padding: 22px 14px 18px;
     overflow-y: auto;
     background: var(--rail);
-    border-right: 1px solid var(--hairline);
+    border-inline-end: 1px solid var(--hairline);
   }
   .main {
     display: flex;

@@ -15,7 +15,7 @@
   import { ApiError } from '../../lib/core/api';
   import { failureText, isRouteMissing } from '../../lib/core/catalog';
   import { connectionStatus } from '../../lib/core/connectionWords';
-  import { t, type MessageKey } from '../../lib/core/i18n';
+  import { formatList, t, type MessageKey } from '../../lib/core/i18n';
   import {
     ALERT_EVENTS,
     ALERT_KINDS,
@@ -269,7 +269,10 @@
   function eventsSummary(c: AlertChannel): string {
     const list = c.events ?? [];
     if (list.length === 0) return t('alerts.noEvents');
-    return list.map((e) => t(`alerts.event.short.${e}` as MessageKey)).join(', ');
+    return formatList(
+      list.map((e) => t(`alerts.event.short.${e}` as MessageKey)),
+      'unit',
+    );
   }
 
   const rows = $derived<PanelRow[]>(

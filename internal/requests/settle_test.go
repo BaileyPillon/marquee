@@ -139,8 +139,10 @@ func TestSettleCopyOnAnArtist(t *testing.T) {
 	_, _, _, music := e.standardFolders()
 	res := e.mustAsk(e.owner, AskInput{Kind: KindArtist, Provider: "musicbrainz", ProviderID: chopinMBID, Quality: QualityHD})
 	copyID := e.copyOf(res.Request.Title.ID, "hd")
+	// The artist has two monitored albums; one of them has a file, so the request
+	// is partial (TestSettleArtistFollowsTheAlbums goes on to the second album).
 	e.touch(music, "Frédéric Chopin/Nocturnes (1998)/01 - Nocturne 1.flac")
-	if state, err := e.svc.SettleCopy(bg(), copyID); err != nil || state != StateAvailable {
+	if state, err := e.svc.SettleCopy(bg(), copyID); err != nil || state != StatePartial {
 		t.Errorf("%s, %v", state, err)
 	}
 }

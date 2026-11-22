@@ -41,8 +41,11 @@ type toolDef struct {
 // tool is one tool with the code that runs it.
 type tool struct {
 	Name        string
-	Description string
-	Scope       string // the permission tick it needs (what the settings screen shows)
+	Description string // long, written for Claude (tools/list)
+	// Summary is one plain sentence for people: the settings screen shows it instead
+	// of the long description.
+	Summary string
+	Scope   string // the permission tick it needs (what the settings screen shows)
 
 	def     toolDef
 	allowed func(*accounts.Principal) bool
@@ -553,8 +556,21 @@ func (s *Server) buildTools() []*tool {
 	}
 	for _, t := range tools {
 		t.def.Name, t.def.Description = t.Name, t.Description
+		t.Summary = toolSummaries[t.Name]
 	}
 	return tools
+}
+
+// toolSummaries are the one-sentence descriptions of the tools for people (the
+// settings screen). The long descriptions above are for Claude.
+var toolSummaries = map[string]string{
+	ToolSearchTitles: "Looks up movies, shows and artists by name.",
+	ToolLibraryLook:  "Shows what is on disk for one title.",
+	ToolCalendar:     "Lists the episodes that air in the next few days.",
+	ToolDownloads:    "Lists what is downloading right now, read-only.",
+	ToolMyAsks:       "Lists your asks and where each one stands.",
+	ToolHealth:       "Reports whether Marquee and the apps it talks to are working.",
+	ToolAskForTitle:  "Asks for a title in HD or 4K, only after you say yes.",
 }
 
 func planTitleSchema() schema {

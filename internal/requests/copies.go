@@ -2,11 +2,14 @@ package requests
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"slices"
 	"strings"
 
 	"github.com/BaileyPillon/marquee/internal/grab"
 	"github.com/BaileyPillon/marquee/internal/library"
+	"github.com/BaileyPillon/marquee/internal/parse"
 	"github.com/BaileyPillon/marquee/internal/titles"
 )
 
@@ -93,7 +96,10 @@ const filePage = 2000
 //     and "hd" for anything else, including no resolution at all. Music files
 //     count as "hd".
 //   - Movie: missing when the title has no file of the copy's quality.
-//   - Artist: missing when the artist has no matched music file.
+//   - Artist: missing when one of the monitored albums has no matched music file
+//     (a file belongs to an album by its track id, or, for a file scanned before
+//     the tracks were known, by the album its path names). An artist whose
+//     albums are not loaded yet is missing when it has no music file at all.
 //   - Show: the episodes that count are the monitored ones that have aired (a
 //     known air date up to today) and sit in a season the copy was asked for (any
 //     season, when the copy has no request that names seasons, or one asks for
@@ -139,6 +145,15 @@ func (s *Service) Wanted(ctx context.Context) ([]grab.Copy, error) {
 				return nil, err
 			}
 			missing = showMissing(d, row.Quality, ff, scopes[copyKey{row.TitleID, row.Quality}], today)
+		case KindArtist:
+			d, err := s.cat.Get(ctx, row.TitleID)
+			if errors.Is(err, titles.ErrNotFound) {
+				continue
+			}
+			if err != nil {
+				return nil, err
+			}
+			missing = artistMissing(d, ff)
 		default:
 			missing = !ff.has(row.Quality)
 		}
@@ -158,6 +173,8 @@ func (s *Service) Wanted(ctx context.Context) ([]grab.Copy, error) {
 type titleFiles struct {
 	quality  map[string]bool
 	episodes map[string]map[int64]bool // quality -> episode ids with a file
+	tracks   map[int64]bool            // music: track ids with a file
+	albums   []string                  // music files with no track id: the album their path names
 }
 
 func (f *titleFiles) has(quality string) bool { return f != nil && f.quality[quality] }
@@ -198,6 +215,9 @@ func (s *Service) fileFacts(ctx context.Context, titleID int64) (map[int64]*titl
 				out[*f.TitleID] = tf
 			}
 			tf.quality[q] = true
+			if f.Kind == library.KindMusic {
+				tf.addMusic(f)
+			}
 			for _, e := range f.EpisodeIDs {
 				if tf.episodes[q] == nil {
 					tf.episodes[q] = map[int64]bool{}
@@ -209,6 +229,78 @@ func (s *Service) fileFacts(ctx context.Context, titleID int64) (map[int64]*titl
 			return out, nil
 		}
 	}
+}
+
+// addMusic notes which track or album a music file stands for.
+func (f *titleFiles) addMusic(file library.File) {
+	if file.TrackID != nil {
+		if f.tracks == nil {
+			f.tracks = map[int64]bool{}
+		}
+		f.tracks[*file.TrackID] = true
+		return
+	}
+	var parsed parse.MusicRelease
+	if json.Unmarshal(file.Parsed, &parsed) == nil && parsed.Album != "" && !slices.Contains(f.albums, parsed.Album) {
+		f.albums = append(f.albums, parsed.Album)
+	}
+}
+
+// albumsHaving says which of an artist's albums have a file: one with a track
+// that has a file, or one a file's path names (a file the scanner matched to
+// the artist before the tracks were loaded).
+func albumsHaving(d *titles.Detail, ff *titleFiles) map[int64]bool {
+	out := map[int64]bool{}
+	if ff == nil {
+		return out
+	}
+	for _, a := range d.Albums {
+		for _, t := range a.Tracks {
+			if ff.tracks[t.ID] {
+				out[a.ID] = true
+				break
+			}
+		}
+		if out[a.ID] {
+			continue
+		}
+		for _, name := range ff.albums {
+			if parse.AlbumNameMatches(a.Name, name) {
+				out[a.ID] = true
+				break
+			}
+		}
+	}
+	return out
+}
+
+// artistMissing applies the artist rule described at Wanted.
+func artistMissing(d *titles.Detail, ff *titleFiles) bool {
+	if len(d.Albums) == 0 {
+		return !ff.has(QualityHD)
+	}
+	have := albumsHaving(d, ff)
+	for _, a := range d.Albums {
+		if a.Monitored && !have[a.ID] {
+			return true
+		}
+	}
+	return false
+}
+
+// AlbumsOnDisk says which of an artist's albums have at least one matched file
+// that is still on disk, by album id. The artist page and the music search use
+// it, so they agree with Wanted about what is missing.
+func (s *Service) AlbumsOnDisk(ctx context.Context, titleID int64) (map[int64]bool, error) {
+	d, err := s.cat.Get(ctx, titleID)
+	if err != nil {
+		return nil, err
+	}
+	facts, err := s.fileFacts(ctx, titleID)
+	if err != nil {
+		return nil, err
+	}
+	return albumsHaving(d, facts[titleID]), nil
 }
 
 // showMissing applies the show rule described at Wanted.

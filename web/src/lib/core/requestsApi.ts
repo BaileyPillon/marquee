@@ -71,8 +71,12 @@ function normaliseList(list: RequestList): RequestList {
   return { ...list, items: list.items ?? [] };
 }
 
+/**
+ * `titleId` keeps only the asks for one title (the server does the filtering; a member still only
+ * sees their own).
+ */
 export async function listRequests(
-  params: { state?: string; mine?: boolean; limit?: number; offset?: number } = {},
+  params: { state?: string; mine?: boolean; titleId?: number; limit?: number; offset?: number } = {},
   signal?: AbortSignal,
 ): Promise<RequestList> {
   const { mine, ...rest } = params;
@@ -112,16 +116,23 @@ export async function cancelRequest(id: number): Promise<RequestItem> {
 
 export interface PersonLimits {
   effective: {
-    /** null: no limit. */
+    /** null: no limit (`hdUnlimited` says so in words). */
     hdPerWeek: number | null;
+    hdUnlimited?: boolean;
     uhdPerWeek: number | null;
+    uhdUnlimited?: boolean;
     autoApproveHD: boolean;
     autoApproveUHD: boolean;
   };
-  /** What the owner set by name; null means "use the default". */
+  /**
+   * What the owner set by name. A null limit means "use the default" unless its `Unlimited` flag is
+   * true: then the owner chose "unlimited" for this person.
+   */
   overrides: {
     hdPerWeek: number | null;
+    hdUnlimited?: boolean;
     uhdPerWeek: number | null;
+    uhdUnlimited?: boolean;
     autoApproveHD: boolean | null;
     autoApproveUHD: boolean | null;
   };
@@ -138,8 +149,11 @@ export interface PersonInfo {
 }
 
 export interface RequestDefaults {
-  hdPerWeek: number;
-  uhdPerWeek: number;
+  /** The default weekly limit; null when the default is unlimited (`hdUnlimited`). */
+  hdPerWeek: number | null;
+  hdUnlimited?: boolean;
+  uhdPerWeek: number | null;
+  uhdUnlimited?: boolean;
   autoApproveHD: boolean;
   autoApproveUHD: boolean;
 }
@@ -154,10 +168,13 @@ export async function getPeople(signal?: AbortSignal): Promise<PeopleResult> {
   return { ...res, people: res.people ?? [] };
 }
 
-/** A field left out stays; a field sent as null goes back to the default. */
+/**
+ * A field left out stays; a field sent as null goes back to the default. A weekly limit is a whole
+ * number from 0 up, or the word "unlimited".
+ */
 export interface LimitsPatch {
-  hdPerWeek?: number | null;
-  uhdPerWeek?: number | null;
+  hdPerWeek?: number | 'unlimited' | null;
+  uhdPerWeek?: number | 'unlimited' | null;
   autoApproveHD?: boolean | null;
   autoApproveUHD?: boolean | null;
 }

@@ -21,7 +21,7 @@
   import { isRouteMissing } from '../lib/core/catalog';
   import { debounce, onEvent, onResync } from '../lib/core/events';
   import { formatDay, isoDay } from '../lib/core/format';
-  import { t } from '../lib/core/i18n';
+  import { activeLocale, formatDate, t } from '../lib/core/i18n';
   import { isDesktop } from '../lib/core/media';
   import { getCalendar, type CalendarItem } from '../lib/core/serversApi';
 
@@ -39,7 +39,7 @@
   /** 1 (Monday) to 7 (Sunday): the first day of the week where the reader lives. */
   const firstDay: number = (() => {
     try {
-      const locale = new Intl.Locale(navigator.language) as unknown as {
+      const locale = new Intl.Locale(activeLocale()) as unknown as {
         getWeekInfo?: () => { firstDay: number };
         weekInfo?: { firstDay: number };
       };
@@ -80,7 +80,7 @@
   const today = new Date();
   const rangeLabel = $derived(
     view === 'month'
-      ? new Intl.DateTimeFormat(undefined, { month: 'long', year: 'numeric' }).format(anchor)
+      ? formatDate(anchor, { month: 'long', year: 'numeric' })
       : t('calendar.weekOf', {
           from: formatDay(days[0] ? isoDay(days[0]) + 'T12:00:00' : ''),
           to: formatDay(days[6] ? isoDay(days[6]) + 'T12:00:00' : ''),
@@ -89,8 +89,8 @@
 
   const weekdayNames = $derived(
     (weeks[0] ?? []).map((d) => ({
-      long: new Intl.DateTimeFormat(undefined, { weekday: 'long' }).format(d),
-      short: new Intl.DateTimeFormat(undefined, { weekday: 'short' }).format(d),
+      long: formatDate(d, { weekday: 'long' }),
+      short: formatDate(d, { weekday: 'short' }),
     })),
   );
 
@@ -175,7 +175,7 @@
   const total = $derived(items.length);
 
   function dayLong(d: Date): string {
-    return new Intl.DateTimeFormat(undefined, { weekday: 'long', day: 'numeric', month: 'long' }).format(d);
+    return formatDate(d, { weekday: 'long', day: 'numeric', month: 'long' });
   }
 
   const uid = $props.id();
@@ -248,7 +248,7 @@
   </div>
 {:else}
   <p class="count" role="status">
-    {total === 0 ? t('calendar.none') : total === 1 ? t('calendar.countOne') : t('calendar.count', { n: total })}
+    {total === 0 ? t('calendar.none') : t('calendar.count', { n: total })}
   </p>
 
   {#if $isDesktop}
@@ -373,9 +373,10 @@
     table-layout: fixed;
   }
   th {
-    padding: 10px 10px 10px 12px;
+    padding-block: 10px;
+    padding-inline: 12px 10px;
     border-bottom: 1px solid var(--hairline-strong);
-    text-align: left;
+    text-align: start;
     font-size: 11.5px;
     font-weight: 600;
     line-height: 16px;
@@ -386,12 +387,13 @@
   td {
     vertical-align: top;
     height: 118px;
-    padding: 8px 8px 10px 10px;
-    border-left: 1px solid var(--hairline-strong);
+    padding-block: 8px 10px;
+    padding-inline: 10px 8px;
+    border-inline-start: 1px solid var(--hairline-strong);
     border-top: 1px solid var(--hairline-strong);
   }
   td:first-child {
-    border-left: 0;
+    border-inline-start: 0;
   }
   tbody tr:first-child td {
     border-top: 0;

@@ -10,9 +10,15 @@
   }
 
   let { name, size = 20, stroke = 1.75, filled = false }: Props = $props();
+
+  // Glyphs whose direction means something (back, forward, in, out): they face the other way when
+  // the page reads right to left. Everything else (play, search, check) keeps its drawing.
+  const DIRECTIONAL: ReadonlySet<IconName> = new Set<IconName>(['back', 'chevron', 'arrow', 'send', 'signOut']);
+  const flip = $derived(DIRECTIONAL.has(name));
 </script>
 
 <svg
+  class:flip
   viewBox="0 0 24 24"
   width={size}
   height={size}
@@ -30,5 +36,8 @@
 <style>
   svg {
     flex: 0 0 auto;
+  }
+  :global(:root[dir='rtl']) svg.flip {
+    transform: scaleX(-1);
   }
 </style>

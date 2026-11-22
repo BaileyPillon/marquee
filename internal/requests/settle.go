@@ -55,6 +55,13 @@ func (s *Service) copyMissing(ctx context.Context, row copyRow) (bool, error) {
 		return false, err
 	}
 	ff := facts[row.TitleID]
+	if row.Kind == KindArtist {
+		d, err := s.cat.Get(ctx, row.TitleID)
+		if err != nil {
+			return false, err
+		}
+		return artistMissing(d, ff), nil
+	}
 	if row.Kind != KindShow {
 		return !ff.has(row.Quality), nil
 	}

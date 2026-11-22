@@ -276,7 +276,7 @@ func TestSearchCopyErrors(t *testing.T) {
 			t.Errorf("retry: %v, %d grabs", err, len(r.grabber.all()))
 		}
 	})
-	t.Run("music is not searched yet", func(t *testing.T) {
+	t.Run("an artist with no albums loaded has nothing to look for", func(t *testing.T) {
 		r := newRig(t)
 		id := r.addArtist("Frédéric Chopin")
 		cp := r.addCopy(1, id, "artist", grab.QualityHD)
@@ -285,9 +285,9 @@ func TestSearchCopyErrors(t *testing.T) {
 			t.Fatal(err)
 		}
 		if r.srv.Searches() != 0 || len(r.grabber.all()) != 0 {
-			t.Error("music must not be searched in this milestone")
+			t.Error("there is no album to search for, so no source should be asked")
 		}
-		if h := r.history(cp.ID); len(h) != 1 || h[0].Note != "Music is not searched yet" {
+		if h := r.history(cp.ID); len(h) != 1 || !strings.HasPrefix(h[0].Note, "Nothing to look for") {
 			t.Errorf("history = %+v", h)
 		}
 	})

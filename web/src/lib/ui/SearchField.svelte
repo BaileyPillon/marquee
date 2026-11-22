@@ -51,7 +51,7 @@
   }
   .glyph {
     position: absolute;
-    left: 14px;
+    inset-inline-start: 14px;
     top: 13px;
     display: flex;
     color: var(--muted);
@@ -61,7 +61,8 @@
     box-sizing: border-box;
     width: 100%;
     height: 44px;
-    padding: 0 14px 0 42px;
+    padding-block: 0;
+    padding-inline: 42px 14px;
     background: var(--input);
     border: 1px solid var(--input-border);
     border-radius: var(--radius-sm);

@@ -215,7 +215,8 @@
     box-sizing: border-box;
     min-height: 48px;
     margin-top: 2px;
-    padding: 0 4px 0 0;
+    padding-block: 0;
+    padding-inline: 0 4px;
     border: 0;
     background: transparent;
     color: var(--accent);
@@ -233,6 +234,10 @@
   }
   .link.open :global(svg) {
     transform: rotate(90deg);
+  }
+  /* The arrow is mirrored when the page reads right to left; turn it the other way so it still ends up pointing down. */
+  :global(:root[dir='rtl']) .link.open :global(svg.flip) {
+    transform: rotate(-90deg) scaleX(-1);
   }
   .invite {
     display: flex;

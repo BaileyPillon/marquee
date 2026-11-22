@@ -8,7 +8,7 @@
 // code that publishes them (downloads: {type, id, ...}; requests: {event, id, state}).
 
 /** The topics the app listens to. A topic nobody publishes on is harmless. */
-const TOPICS = ['requests', 'downloads', 'titles', 'watchlists', 'calendar', 'alerts'];
+const TOPICS = ['requests', 'downloads', 'titles', 'watchlists', 'calendar', 'alerts', 'library', 'subtitles'];
 const STREAM_URL = `/api/v1/events?topic=${TOPICS.join(',')}`;
 
 export type EventHandler = (data: unknown) => void;

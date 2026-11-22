@@ -22,8 +22,7 @@
 <style>
   .region {
     position: fixed;
-    left: 16px;
-    right: 16px;
+    inset-inline: 16px;
     bottom: calc(var(--tabbar-height) + env(safe-area-inset-bottom) + 16px);
     z-index: 60;
     display: flex;

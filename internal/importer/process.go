@@ -121,9 +121,41 @@ func (r *run) failWith(blame, noMedia bool, format string, args ...any) {
 	r.res.Retryable = !blame
 }
 
+// step says which step of the import is running and, when it is known, where the
+// files are going. The Downloads screen shows it; a failure to say it is only
+// logged.
+func (s *Service) step(ctx context.Context, r *run, step, target string) {
+	if err := s.deps.Downloads.SetImportStep(context.WithoutCancel(ctx), r.d.ID, step, target); err != nil {
+		s.log.Warn("import: could not record the import step", "download", r.d.ID, "step", step, "err", err)
+	}
+}
+
+// importTarget is where a set of planned files is going: the file itself when
+// there is one, otherwise the folder they all share.
+func importTarget(root string, plans []plan) string {
+	switch len(plans) {
+	case 0:
+		return ""
+	case 1:
+		return filepath.Join(root, filepath.FromSlash(plans[0].dest))
+	}
+	common := path.Dir(plans[0].dest)
+	for _, p := range plans[1:] {
+		dir := path.Dir(p.dest)
+		for common != "." && dir != common && !strings.HasPrefix(dir+"/", common+"/") {
+			common = path.Dir(common)
+		}
+	}
+	if common == "." {
+		return root
+	}
+	return filepath.Join(root, filepath.FromSlash(common))
+}
+
 // attempt does the work of an import and leaves its verdict in r.res.
 func (s *Service) attempt(ctx context.Context, r *run) {
 	d := r.d
+	s.step(ctx, r, downloads.StepChecking, "")
 	if d.CopyID == 0 {
 		r.failWith(false, false, "This download is not tied to a copy of a title, so there is no library folder to put it in.")
 		return
@@ -184,6 +216,7 @@ func (s *Service) attempt(ctx context.Context, r *run) {
 		return
 	}
 
+	det = s.ensureTracks(ctx, r, det)
 	v := newVerifier(det, root, d.ReleaseTitle, d.EpisodeIDs)
 	plans, skips := v.verify(files)
 	r.res.Skipped = skips
@@ -192,6 +225,7 @@ func (s *Service) attempt(ctx context.Context, r *run) {
 		return
 	}
 
+	s.step(ctx, r, downloads.StepRenaming, importTarget(folder.Path, plans))
 	prof := s.profileFor(ctx, det.Kind, cp.Quality)
 	existing := s.existingFiles(ctx, folder.ID, det.ID)
 	method := MethodLink
@@ -199,6 +233,7 @@ func (s *Service) attempt(ctx context.Context, r *run) {
 		method = MethodMove
 	}
 
+	s.step(ctx, r, downloads.StepMoving, "")
 	var (
 		ioErr      error
 		registered []library.ImportedFile
@@ -218,7 +253,7 @@ func (s *Service) attempt(ctx context.Context, r *run) {
 		case actAdopt:
 			r.adopted = append(r.adopted, p)
 			r.cover(p)
-			registered = append(registered, library.ImportedFile{RelPath: p.dest, TitleID: p.titleID, EpisodeIDs: p.episodes, Quality: p.quality})
+			registered = append(registered, library.ImportedFile{RelPath: p.dest, TitleID: p.titleID, EpisodeIDs: p.episodes, TrackID: p.trackID, Quality: p.quality})
 			continue
 		}
 		m := method
@@ -251,7 +286,7 @@ func (s *Service) attempt(ctx context.Context, r *run) {
 		r.placed = append(r.placed, p)
 		r.res.Imported = append(r.res.Imported, placed)
 		r.cover(p)
-		registered = append(registered, library.ImportedFile{RelPath: p.dest, TitleID: p.titleID, EpisodeIDs: p.episodes, Quality: p.quality})
+		registered = append(registered, library.ImportedFile{RelPath: p.dest, TitleID: p.titleID, EpisodeIDs: p.episodes, TrackID: p.trackID, Quality: p.quality})
 	}
 
 	if len(registered) > 0 {
@@ -672,28 +707,49 @@ func (r *run) detail() importDetail {
 
 func (s *Service) succeed(ctx context.Context, r *run) {
 	d := r.d
-	if err := s.deps.Downloads.SetState(ctx, d.ID, downloads.StateImported, ""); err != nil {
-		s.log.Warn("import: could not mark the download imported", "download", d.ID, "err", err)
+	titleID := d.TitleID
+
+	// Tell the media servers first: what arrived, and what an upgrade took away.
+	// The history then says which of them were told.
+	var rescanned []string
+	if s.deps.Servers != nil {
+		paths := absPaths(r.folder.Path, r.placed, r.adopted)
+		if len(paths) > 0 || len(r.removedAbs) > 0 {
+			s.step(ctx, r, downloads.StepRescanning, "")
+		}
+		if len(paths) > 0 {
+			rescanned = told(s.deps.Servers.Notify(ctx, mediaservers.Event{Kind: mediaservers.EventCreated, Paths: paths}))
+		}
+		if len(r.removedAbs) > 0 {
+			if gone := told(s.deps.Servers.Notify(ctx, mediaservers.Event{Kind: mediaservers.EventDeleted, Paths: r.removedAbs})); len(paths) == 0 {
+				rescanned = gone
+			}
+		}
 	}
 
-	titleID := d.TitleID
+	withServers := func(detail map[string]any) map[string]any {
+		if len(rescanned) > 0 {
+			detail["rescanned"] = rescanned
+		}
+		return detail
+	}
 	if len(r.res.Imported) > 0 {
 		var fresh []Placed
 		for _, p := range r.res.Imported {
 			if p.Upgrade {
-				s.note(ctx, history.Entry{TitleID: titleID, CopyID: d.CopyID, DownloadID: d.ID, Event: history.Upgraded, Detail: map[string]any{
-					"release": d.ReleaseTitle, "from": p.From, "to": p.Quality, "path": p.Path, "replaced": p.Replaced, "mode": p.Mode}})
+				s.note(ctx, history.Entry{TitleID: titleID, CopyID: d.CopyID, DownloadID: d.ID, Event: history.Upgraded, Detail: withServers(map[string]any{
+					"release": d.ReleaseTitle, "from": p.From, "to": p.Quality, "path": p.Path, "replaced": p.Replaced, "mode": p.Mode})})
 				continue
 			}
 			fresh = append(fresh, p)
 		}
 		if len(fresh) > 0 {
-			s.note(ctx, history.Entry{TitleID: titleID, CopyID: d.CopyID, DownloadID: d.ID, Event: history.Imported, Detail: map[string]any{
-				"release": d.ReleaseTitle, "files": fresh, "skipped": len(r.res.Skipped)}})
+			s.note(ctx, history.Entry{TitleID: titleID, CopyID: d.CopyID, DownloadID: d.ID, Event: history.Imported, Detail: withServers(map[string]any{
+				"release": d.ReleaseTitle, "files": fresh, "skipped": len(r.res.Skipped)})})
 		}
 	} else if len(r.adopted) > 0 {
-		s.note(ctx, history.Entry{TitleID: titleID, CopyID: d.CopyID, DownloadID: d.ID, Event: history.Imported, Detail: map[string]any{
-			"release": d.ReleaseTitle, "files": []Placed{}, "alreadyThere": len(r.adopted)}})
+		s.note(ctx, history.Entry{TitleID: titleID, CopyID: d.CopyID, DownloadID: d.ID, Event: history.Imported, Detail: withServers(map[string]any{
+			"release": d.ReleaseTitle, "files": []Placed{}, "alreadyThere": len(r.adopted)})})
 	}
 
 	if s.deps.Requests != nil && d.CopyID != 0 {
@@ -701,21 +757,12 @@ func (s *Service) succeed(ctx context.Context, r *run) {
 			s.log.Warn("import: could not update the request", "copy", d.CopyID, "err", err)
 		}
 	}
-
-	// Tell the media servers: what arrived, and what an upgrade took away.
-	if s.deps.Servers != nil {
-		if paths := absPaths(r.folder.Path, r.placed, r.adopted); len(paths) > 0 {
-			s.deps.Servers.Notify(ctx, mediaservers.Event{Kind: mediaservers.EventCreated, Paths: paths})
-		}
-		if len(r.removedAbs) > 0 {
-			s.deps.Servers.Notify(ctx, mediaservers.Event{Kind: mediaservers.EventDeleted, Paths: r.removedAbs})
-		}
-	}
 	if s.hub != nil && (len(r.placed) > 0 || len(r.adopted) > 0 || len(r.removedAbs) > 0) {
 		s.hub.Publish(LibraryTopic, map[string]any{
 			"event": "imported", "titleId": titleID, "copyId": d.CopyID, "downloadId": d.ID, "files": len(r.placed) + len(r.adopted),
 		})
 	}
+	s.afterImport(ctx, r)
 
 	// Episodes the download was for that did not make it: let the search look
 	// for them again instead of waiting out the day it keeps a grab in mind.
@@ -733,6 +780,10 @@ func (s *Service) succeed(ctx context.Context, r *run) {
 		}
 	}
 
+	// Last, so "imported" (and the step "done") means everything above is done.
+	if err := s.deps.Downloads.SetState(ctx, d.ID, downloads.StateImported, ""); err != nil {
+		s.log.Warn("import: could not mark the download imported", "download", d.ID, "err", err)
+	}
 	if err := s.store.finish(ctx, r.res.ImportID, importEnd{
 		Outcome: r.res.Outcome, Imported: len(r.res.Imported) + len(r.adopted), Skipped: len(r.res.Skipped),
 		Reason: truncate(r.res.Reason, maxReasonRunes), Detail: r.detail(), At: s.now(),
@@ -740,6 +791,17 @@ func (s *Service) succeed(ctx context.Context, r *run) {
 		s.log.Warn("import: could not record the result", "download", d.ID, "err", err)
 	}
 	s.log.Info("download imported", "download", d.ID, "title", titleID, "files", len(r.res.Imported), "outcome", r.res.Outcome)
+}
+
+// told lists the names of the media servers that took a notification.
+func told(results []mediaservers.NotifyResult) []string {
+	var out []string
+	for _, res := range results {
+		if res.OK && res.Server.Name != "" {
+			out = append(out, res.Server.Name)
+		}
+	}
+	return out
 }
 
 func absPaths(root string, groups ...[]plan) []string {
@@ -840,6 +902,13 @@ func grabKeys(det *titles.Detail, d downloads.Download) []string {
 		if rel := parse.ParseRelease(d.ReleaseTitle); rel.FullSeason && rel.Season > 0 {
 			return []string{search.SeasonKey(rel.Season)}
 		}
+	case titles.KindArtist:
+		// An artist's download carries the album it was for in its episode ids.
+		var keys []string
+		for _, id := range d.EpisodeIDs {
+			keys = append(keys, search.AlbumKey(id))
+		}
+		return keys
 	}
 	return nil
 }

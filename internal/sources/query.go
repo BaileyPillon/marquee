@@ -27,6 +27,12 @@ type Query struct {
 	Episode int // shows: 0 means not set
 	Limit   int
 
+	// Artist and Album narrow a music search (MediaArtist). A source whose
+	// music search lists those parameters is sent them; any other is asked for
+	// Text. Album may be empty: then it is every release of the artist.
+	Artist string
+	Album  string
+
 	// NoIDs forces a text search. The search service sets it for the second
 	// try when an id search found nothing.
 	NoIDs bool
@@ -123,7 +129,16 @@ func BuildSearch(caps *Caps, q Query, cats []int) (mode string, params url.Value
 		}
 
 	case MediaArtist:
-		if text != "" {
+		// The structured parameters count as an "id" search: a source that finds
+		// nothing with them is asked again with plain text.
+		if !q.NoIDs && mode == ModeMusic && strings.TrimSpace(q.Artist) != "" && caps.Supports(mode, "artist") {
+			params.Set("artist", strings.TrimSpace(q.Artist))
+			usedIDs = true
+			if album := strings.TrimSpace(q.Album); album != "" && caps.Supports(mode, "album") {
+				params.Set("album", album)
+			}
+		}
+		if !usedIDs && text != "" {
 			params.Set("q", text)
 		}
 

@@ -164,7 +164,8 @@
     box-sizing: border-box;
     min-height: 48px;
     margin-top: 2px;
-    padding: 0 4px 0 0;
+    padding-block: 0;
+    padding-inline: 0 4px;
     color: var(--accent);
     font-size: 15px;
     font-weight: 600;

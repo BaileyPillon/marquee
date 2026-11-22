@@ -1,0 +1,124 @@
+# Marquee with Docker Compose.
+#
+#   docker compose -f deploy/compose.yaml up -d      (or copy this file anywhere and run it there)
+#
+# Then open http://<this machine>:6464 . The first person to open it becomes the
+# owner, so do that yourself before you share the address.
+# Full guide: docs/install.md
+
+name: marquee
+
+services:
+  marquee:
+    image: ghcr.io/baileypillon/marquee:latest   # pin a version once you are happy, e.g. :0.1.0
+    container_name: marquee
+    restart: unless-stopped
+    ports:
+      - "6464:6464"
+    environment:
+      TZ: America/New_York          # your time zone, so dates and logs read right
+      MARQUEE_LOG_LEVEL: info       # debug, info, warn or error
+    volumes:
+      # Marquee's own files: marquee.db, marquee-events.db and marquee.key.
+      # BACK UP marquee.key. Without it the keys and passwords saved in Settings
+      # cannot be read again.
+      - marquee-config:/config
+
+      # Your media and your downloads, on ONE host folder mounted ONCE.
+      #
+      # Hardlinks only work inside one filesystem, and only if the download app
+      # and Marquee both see the files through the same mount. So give them one
+      # shared parent and use sub-folders of it, rather than a separate volume for
+      # each:
+      #
+      #   /srv/media            on the host        (change this to your own folder)
+      #     downloads/                           qBittorrent / SABnzbd save here
+      #     movies/                              library folder, kind "movie"
+      #     movies-4k/                           library folder for 4K copies
+      #     tv/                                  library folder, kind "show"
+      #     music/                               library folder, kind "music"
+      #
+      # In Settings, add the library folders as /data/movies, /data/tv and so on.
+      # If every container mounts the host folder at /data, no path rules are needed.
+      #
+      # Separate mounts for /movies, /tv, /music and /downloads still work, but a
+      # hardlink cannot cross from one mount to another (even when they are the
+      # same disk), so Marquee falls back to COPYING each finished torrent, which
+      # uses twice the disk space. One shared /data mount avoids that.
+      - /srv/media:/data
+
+    # The image is built FROM scratch and runs as user 65532 by default. The
+    # usual PUID and PGID variables do NOT exist here (there is no shell to read
+    # them). If your media folders belong to someone else, which is likely, run
+    # as that user instead:
+    #
+    #   user: "1000:1000"
+    #
+    # and then keep the config on a host folder that user owns, instead of the
+    # named volume above:
+    #
+    #   mkdir -p ./config && chown 1000:1000 ./config
+    #   volumes:
+    #     - ./config:/config
+    #
+    # (Find a user's ids with:  id -u  and  id -g .)
+
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    # read_only: true                 # optional: the image never writes outside /config, /data and /tmp
+    # tmpfs:
+    #   - /tmp
+
+    # No health check yet: the image has no shell or curl, so it needs a
+    # `marquee healthcheck` command inside the binary. See docs/install.md.
+
+  # ---- Optional: qBittorrent ---------------------------------------------------
+  # Marquee talks to qBittorrent's web interface. In Settings, add a download app
+  # of kind qBittorrent with the address http://qbittorrent:8080 (the service
+  # name works because both are on this compose project's network).
+  #
+  # qbittorrent:
+  #   image: lscr.io/linuxserver/qbittorrent:latest
+  #   container_name: qbittorrent
+  #   restart: unless-stopped
+  #   environment:
+  #     PUID: "1000"
+  #     PGID: "1000"
+  #     TZ: America/New_York
+  #     WEBUI_PORT: "8080"
+  #   ports:
+  #     - "8080:8080"                 # web interface (leave this line out to keep it private)
+  #     - "6881:6881"
+  #     - "6881:6881/udp"
+  #   volumes:
+  #     - qbittorrent-config:/config
+  #     - /srv/media:/data            # the SAME host folder, mounted at the SAME path as in marquee
+  #   # In qBittorrent, set the default save path to /data/downloads.
+
+  # ---- Optional: Jellyfin --------------------------------------------------------
+  # Marquee only tells Jellyfin to rescan; Jellyfin plays the files. In Settings,
+  # add a media server of kind Jellyfin with the address http://jellyfin:8096 and an
+  # API key (Jellyfin: Dashboard, then API Keys).
+  #
+  # jellyfin:
+  #   image: jellyfin/jellyfin:latest
+  #   container_name: jellyfin
+  #   restart: unless-stopped
+  #   user: "1000:1000"
+  #   environment:
+  #     TZ: America/New_York
+  #   ports:
+  #     - "8096:8096"
+  #   volumes:
+  #     - jellyfin-config:/config
+  #     - jellyfin-cache:/cache
+  #     - /srv/media:/data:ro         # read-only is enough; Marquee does the writing
+  #   # In Jellyfin, add libraries at /data/movies, /data/tv and /data/music.
+
+volumes:
+  marquee-config:
+  # qbittorrent-config:
+  # jellyfin-config:
+  # jellyfin-cache:

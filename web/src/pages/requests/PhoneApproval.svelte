@@ -231,13 +231,14 @@
     box-sizing: border-box;
     width: 100%;
     min-height: 64px;
-    padding: 6px 14px 6px 6px;
+    padding-block: 6px;
+    padding-inline: 6px 14px;
     border: 0;
     border-radius: var(--radius-lg);
     background: var(--panel);
     box-shadow: inset 0 0 0 1px var(--hairline-strong);
     color: var(--text);
-    text-align: left;
+    text-align: start;
   }
   button:hover {
     background: var(--panel-hover);

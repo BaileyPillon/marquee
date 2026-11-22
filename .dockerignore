@@ -1,0 +1,37 @@
+# What the Docker build does NOT need. The build context is the repository root
+# (docker build -f deploy/Dockerfile .). The UI is built inside the image, so
+# anything built locally is left out too.
+
+# Version control and CI
+.git
+.github
+.gitattributes
+.gitignore
+
+# Local builds, dev data and secrets
+bin
+.dev
+.dev-*
+config
+*.db
+*.db-wal
+*.db-shm
+marquee.key
+.env*
+*.exe
+*.log
+
+# Node: the image runs `npm ci` and `npm run build` itself
+web/node_modules
+web/dist
+
+# Not part of the binary
+docs
+releases
+scripts
+deploy
+*.md
+**/*_test.go
+
+# Kept on purpose: LICENSE (copied into the image), VERSION, go.mod, go.sum,
+# cmd, internal, tools and web (minus node_modules and dist).

@@ -1,0 +1,107 @@
+{
+  "language": "it",
+  "register": "tu (informale e cordiale)",
+  "terms": {
+    "ask": {
+      "use": "richiesta (nome), richiedere (verbo); la schermata 'Requests' è 'Richieste'",
+      "avoid": [
+        "domanda",
+        "pedido"
+      ]
+    },
+    "approve": {
+      "use": "approvare",
+      "avoid": [
+        "autorizzare"
+      ]
+    },
+    "decline": {
+      "use": "rifiutare",
+      "avoid": [
+        "declinare",
+        "respingere"
+      ]
+    },
+    "owner": {
+      "use": "proprietario",
+      "avoid": [
+        "padrone"
+      ]
+    },
+    "admin": {
+      "use": "Admin",
+      "avoid": [
+        "Amministratore"
+      ]
+    },
+    "member": {
+      "use": "membro",
+      "avoid": [
+        "iscritto"
+      ]
+    },
+    "library": {
+      "use": "libreria",
+      "avoid": [
+        "biblioteca",
+        "raccolta"
+      ]
+    },
+    "download app": {
+      "use": "app di download",
+      "avoid": [
+        "client di download",
+        "client di scaricamento"
+      ]
+    },
+    "media server": {
+      "use": "server multimediale",
+      "avoid": [
+        "server di media"
+      ]
+    },
+    "source": {
+      "use": "fonte",
+      "avoid": [
+        "sorgente"
+      ]
+    },
+    "release": {
+      "use": "release",
+      "avoid": [
+        "rilascio",
+        "uscita"
+      ]
+    },
+    "grab": {
+      "use": "Scarica",
+      "avoid": [
+        "Afferra",
+        "Preleva"
+      ]
+    },
+    "4K copy": {
+      "use": "copia 4K",
+      "avoid": [
+        "versione 4K"
+      ]
+    },
+    "watchlist": {
+      "use": "lista da guardare",
+      "avoid": [
+        "watchlist"
+      ]
+    },
+    "monitor": {
+      "use": "Monitora",
+      "avoid": [
+        "Sorveglia"
+      ]
+    }
+  },
+  "notes": [
+    "Marquee resta Marquee.",
+    "Pulsanti brevi all'imperativo o all'infinito ('Aggiungi', 'Salva')."
+  ],
+  "sameAsEnglish": []
+}

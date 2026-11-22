@@ -48,11 +48,14 @@
       const type = (raw as { type?: string }).type;
       if (type && type !== 'progress') soon.call();
     });
+    // Files that arrive, are renamed or are deleted add a line too.
+    const stopLibrary = onEvent('library', () => soon.call());
     const stopResync = onResync(() => soon.call());
     return () => {
       soon.cancel();
       stopRequests();
       stopDownloads();
+      stopLibrary();
       stopResync();
     };
   });

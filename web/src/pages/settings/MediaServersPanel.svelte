@@ -82,7 +82,7 @@
             ok: true,
             text: [
               res.version ? t('apps.test.okVersion', { version: res.version }) : t('apps.test.ok'),
-              libraries === 1 ? t('servers.test.libraryOne') : t('servers.test.libraries', { n: libraries }),
+              t('servers.test.libraries', { n: libraries }),
             ].join(' · '),
           }
         : { ok: false, text: res.error || t('apps.test.failed') };

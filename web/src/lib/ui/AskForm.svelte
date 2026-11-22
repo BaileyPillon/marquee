@@ -247,7 +247,7 @@
     border-radius: var(--radius-lg);
     background: transparent;
     color: var(--text);
-    text-align: left;
+    text-align: start;
     cursor: pointer;
   }
   .choice.pressed {

@@ -22,6 +22,7 @@ func (s *Server) registerWatchlists(api *http.ServeMux) {
 	}
 	owner := guard{roles: []accounts.Role{accounts.RoleOwner}, scope: accounts.ScopeSettings}
 	api.HandleFunc("GET /api/v1/watchlists", s.guarded(owner, s.handleWatchlists))
+	api.HandleFunc("PUT /api/v1/watchlists/plex", s.guarded(owner, s.handlePlexSettings))
 	api.HandleFunc("POST /api/v1/watchlists/plex/link", s.guarded(owner, s.handlePlexLinkStart))
 	api.HandleFunc("GET /api/v1/watchlists/plex/link/{pinId}", s.guarded(owner, s.handlePlexLinkCheck))
 	api.HandleFunc("DELETE /api/v1/watchlists/plex/link", s.guarded(owner, s.handlePlexUnlink))
@@ -61,6 +62,35 @@ func (s *Server) watchlistsError(w http.ResponseWriter, r *http.Request, err err
 func (s *Server) handleWatchlists(w http.ResponseWriter, r *http.Request, _ *accounts.Principal) {
 	st, err := s.Watchlists.Status(r.Context())
 	if err != nil {
+		s.internalError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"plex": st})
+}
+
+// PUT /api/v1/watchlists/plex {enabled?, includeFriends?, autoCreateMembers?, quality?}:
+// changes how the Plex watchlists are read. A field left out keeps its value; the
+// quality is "hd" or "uhd". The answer is {"plex": status}, the same as GET
+// /api/v1/watchlists.
+func (s *Server) handlePlexSettings(w http.ResponseWriter, r *http.Request, _ *accounts.Principal) {
+	var in struct {
+		Enabled           *bool   `json:"enabled"`
+		IncludeFriends    *bool   `json:"includeFriends"`
+		AutoCreateMembers *bool   `json:"autoCreateMembers"`
+		Quality           *string `json:"quality"`
+	}
+	if !decodeStrictJSON(w, r, &in) {
+		return
+	}
+	st, err := s.Watchlists.SetPlexConfig(r.Context(), watchlists.PlexPatch{
+		Enabled: in.Enabled, IncludeFriends: in.IncludeFriends, AutoCreateMembers: in.AutoCreateMembers, Quality: in.Quality,
+	})
+	var bad *watchlists.InvalidError
+	switch {
+	case errors.As(err, &bad):
+		writeError(w, http.StatusBadRequest, "invalid_request", bad.Message)
+		return
+	case err != nil:
 		s.internalError(w, r, err)
 		return
 	}

@@ -23,15 +23,17 @@
     align-items: center;
     gap: 10px;
     box-sizing: border-box;
-    height: 44px;
-    padding: 0 14px 0 18px;
+    min-height: 44px;
+    padding-block: 6px;
+    padding-inline: 18px 14px;
     border: 1px solid var(--line);
     border-radius: var(--radius-sm);
     background: transparent;
     color: var(--text);
     font-size: 14px;
     font-weight: 600;
-    line-height: 1;
+    line-height: 1.25;
+    text-align: start;
     cursor: pointer;
   }
   .toggle:hover {
@@ -56,7 +58,7 @@
   .knob {
     position: absolute;
     top: 3px;
-    left: 3px;
+    inset-inline-start: 3px;
     width: 14px;
     height: 14px;
     border-radius: 50%;
@@ -66,5 +68,8 @@
   .on .knob {
     background: var(--on-accent);
     transform: translateX(16px);
+  }
+  :global(:root[dir='rtl']) .on .knob {
+    transform: translateX(-16px);
   }
 </style>

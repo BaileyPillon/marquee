@@ -210,9 +210,129 @@ func TestWantedArtists(t *testing.T) {
 	if got := e.wanted(); len(got) != 1 || got[wantKey{art, QualityHD}].Kind != KindArtist {
 		t.Fatalf("Wanted = %v", got)
 	}
+	// One album of the two has a file: the other is still missing.
 	e.touch(music, "Frédéric Chopin/Nocturnes (2012) [FLAC]/CD1/01 - Nocturne in E-flat major, Op. 9 No. 2.flac")
+	if got := e.wanted(); len(got) != 1 {
+		t.Errorf("Wanted = %v after one album arrived, want the artist still wanted for the other", got)
+	}
+	e.touch(music, "Frédéric Chopin/Études (1985) [FLAC]/01 - Etude.flac")
 	if got := e.wanted(); len(got) != 0 {
-		t.Errorf("Wanted = %v after a track arrived", got)
+		t.Errorf("Wanted = %v after both albums arrived", got)
+	}
+}
+
+// artistWith asks for the fake Chopin (two studio albums: Nocturnes, one track;
+// Études, none loaded) and returns his title id and the album ids by name.
+func (e *env) artistWith() (int64, map[string]int64) {
+	e.t.Helper()
+	id := e.mustAsk(e.owner, AskInput{Kind: KindArtist, Provider: metadata.ProviderMusicBrainz, ProviderID: chopinMBID, Quality: QualityHD}).Request.Title.ID
+	d, err := e.cat.Get(bg(), id)
+	if err != nil {
+		e.t.Fatal(err)
+	}
+	albums := map[string]int64{}
+	for _, a := range d.Albums {
+		albums[a.Name] = a.ID
+	}
+	return id, albums
+}
+
+func TestWantedArtistAlbums(t *testing.T) {
+	e := newEnv(t)
+	_, _, _, music := e.standardFolders()
+	art, albums := e.artistWith()
+	if len(albums) != 2 {
+		t.Fatalf("albums = %v", albums)
+	}
+
+	// An album the owner does not want is not missing: turn Études off.
+	if _, err := e.db.Exec(`UPDATE albums SET monitored = 0 WHERE id = ?`, albums["Études"]); err != nil {
+		t.Fatal(err)
+	}
+	if got := e.wanted(); got[wantKey{art, QualityHD}].ID == 0 {
+		t.Fatal("Nocturnes is monitored and missing, but the artist is not wanted")
+	}
+
+	// A file the scanner could only match to the artist counts for the album its
+	// path names, even a deluxe edition of it.
+	e.touch(music, "Frédéric Chopin/Nocturnes (Deluxe Edition) (2012) [FLAC]/01 - Anything.flac")
+	if got := e.wanted(); len(got) != 0 {
+		t.Errorf("Nocturnes has a file, Études is not wanted, but Wanted = %v", got)
+	}
+
+	// Turn Études back on: it is missing, so the artist is wanted again.
+	if _, err := e.db.Exec(`UPDATE albums SET monitored = 1 WHERE id = ?`, albums["Études"]); err != nil {
+		t.Fatal(err)
+	}
+	if got := e.wanted(); got[wantKey{art, QualityHD}].ID == 0 {
+		t.Fatal("Études is monitored and missing, but the artist is not wanted")
+	}
+
+	// A file with a track id (what the importer writes) counts through the track.
+	var trackID int64
+	if err := e.db.QueryRow(`SELECT id FROM tracks WHERE album_id = ? LIMIT 1`, albums["Nocturnes"]).Scan(&trackID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.db.Exec(`INSERT INTO tracks (album_id, disc, position, name) VALUES (?, 1, 1, 'Études one')`, albums["Études"]); err != nil {
+		t.Fatal(err)
+	}
+	var etude int64
+	if err := e.db.QueryRow(`SELECT id FROM tracks WHERE album_id = ?`, albums["Études"]).Scan(&etude); err != nil {
+		t.Fatal(err)
+	}
+	e.touch(music, "Unsorted/whatever.flac")
+	if err := e.lib.ImportFiles(bg(), music.ID, []library.ImportedFile{{RelPath: "Unsorted/whatever.flac", TitleID: art, TrackID: etude}}); err != nil {
+		t.Fatal(err)
+	}
+	if got := e.wanted(); len(got) != 0 {
+		t.Errorf("both albums have files, one through its track id, but Wanted = %v", got)
+	}
+
+	// The track's file going away makes the artist wanted again.
+	e.remove(music, "Unsorted/whatever.flac")
+	if got := e.wanted(); got[wantKey{art, QualityHD}].ID == 0 {
+		t.Error("a file went missing, but the artist is not wanted")
+	}
+
+	on, err := e.svc.AlbumsOnDisk(bg(), art)
+	if err != nil || !on[albums["Nocturnes"]] || on[albums["Études"]] {
+		t.Errorf("AlbumsOnDisk = %v, %v; want only Nocturnes", on, err)
+	}
+}
+
+func TestWantedArtistWithoutAlbumsYetNeedsAFile(t *testing.T) {
+	e := newEnv(t)
+	_, _, _, music := e.standardFolders()
+	art, _ := e.artistWith()
+	if _, err := e.db.Exec(`DELETE FROM albums WHERE title_id = ?`, art); err != nil {
+		t.Fatal(err)
+	}
+	if got := e.wanted(); len(got) != 1 {
+		t.Fatalf("Wanted = %v", got)
+	}
+	e.touch(music, "Frédéric Chopin/Nocturnes (2012) [FLAC]/01 - X.flac")
+	if got := e.wanted(); len(got) != 0 {
+		t.Errorf("an artist with no albums loaded and one file is still wanted: %v", got)
+	}
+}
+
+func TestSettleArtistFollowsTheAlbums(t *testing.T) {
+	e := newEnv(t)
+	_, _, _, music := e.standardFolders()
+	art, _ := e.artistWith()
+	cp, err := e.svc.EnsureCopy(bg(), art, QualityHD)
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.touch(music, "Frédéric Chopin/Nocturnes (1998) [FLAC]/01 - Nocturne 1.flac")
+	state, err := e.svc.SettleCopy(bg(), cp.ID)
+	if err != nil || state != StatePartial {
+		t.Errorf("one album of two: SettleCopy = %q, %v; want partial", state, err)
+	}
+	e.touch(music, "Frédéric Chopin/Études (1985) [FLAC]/01 - Etude.flac")
+	state, err = e.svc.SettleCopy(bg(), cp.ID)
+	if err != nil || state != StateAvailable {
+		t.Errorf("both albums: SettleCopy = %q, %v; want available", state, err)
 	}
 }
 

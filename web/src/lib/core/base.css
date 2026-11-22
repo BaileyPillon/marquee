@@ -20,6 +20,21 @@ body {
   font-size: 14px;
   line-height: 1.4;
   -webkit-font-smoothing: antialiased;
+  /* Long words (German, Dutch, Finnish...) split at a hyphenation point where the language has them
+     (the page's lang attribute says which), and only break mid-word when nothing else fits. Text is
+     wrapped, never cut off. */
+  hyphens: auto;
+  overflow-wrap: break-word;
+}
+
+/*
+ * Tracked-out capitals are a Latin habit. They break the joined letters of Arabic, Persian and Urdu
+ * (and are not how Hebrew is set), so right-to-left pages drop the extra letter spacing everywhere.
+ */
+:root[dir='rtl'] *,
+:root[dir='rtl'] *::before,
+:root[dir='rtl'] *::after {
+  letter-spacing: normal !important;
 }
 
 h1,

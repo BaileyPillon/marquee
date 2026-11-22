@@ -251,7 +251,7 @@
     color: var(--danger);
   }
   .problem a {
-    margin-left: 6px;
+    margin-inline-start: 6px;
     font-weight: 600;
   }
   .actions {

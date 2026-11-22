@@ -129,17 +129,15 @@ func (s *Service) Config(ctx context.Context) Config {
 func effective(role string, o LimitOverrides, c Config) EffectiveLimits {
 	e := EffectiveLimits{AutoApproveHD: c.AutoApproveHD, AutoApproveUHD: c.AutoApproveUHD}
 	if role == "member" {
-		hd, uhd := c.HDPerWeek, c.UHDPerWeek
-		e.HDPerWeek, e.UHDPerWeek = &hd, &uhd
+		e.HDPerWeek, e.UHDPerWeek = limitOf(&c.HDPerWeek), limitOf(&c.UHDPerWeek)
 	}
 	if o.HDPerWeek != nil {
-		v := *o.HDPerWeek
-		e.HDPerWeek = &v
+		e.HDPerWeek = limitOf(o.HDPerWeek)
 	}
 	if o.UHDPerWeek != nil {
-		v := *o.UHDPerWeek
-		e.UHDPerWeek = &v
+		e.UHDPerWeek = limitOf(o.UHDPerWeek)
 	}
+	e.HDUnlimited, e.UHDUnlimited = e.HDPerWeek == nil, e.UHDPerWeek == nil
 	if o.AutoApproveHD != nil {
 		e.AutoApproveHD = *o.AutoApproveHD
 	}
@@ -150,6 +148,16 @@ func effective(role string, o LimitOverrides, c Config) EffectiveLimits {
 		e.AutoApproveHD, e.AutoApproveUHD = true, true
 	}
 	return e
+}
+
+// limitOf turns a stored limit into the one the rules use: a copy of the number,
+// or nil (no limit) for Unlimited.
+func limitOf(stored *int) *int {
+	if stored == nil || *stored == Unlimited {
+		return nil
+	}
+	v := *stored
+	return &v
 }
 
 func (e EffectiveLimits) limit(quality string) *int {
@@ -175,7 +183,7 @@ func (s *Service) limitsFor(ctx context.Context, userID int64, role string, c Co
 }
 
 func usageOf(times []time.Time, limit *int) QualityUsage {
-	return QualityUsage{Used: len(times), Limit: limit, ResetsAt: resetsAt(times, limit)}
+	return QualityUsage{Used: len(times), Limit: limit, Unlimited: limit == nil, ResetsAt: resetsAt(times, limit)}
 }
 
 // usage reports a person's last 7 days.
@@ -677,7 +685,10 @@ func (s *Service) List(ctx context.Context, actor Actor, f ListFilter) (*ListRes
 			return nil, ErrForbidden
 		}
 	}
-	items, total, err := s.store.q().list(ctx, itemFilter{UserID: userID, State: f.State, Limit: f.Limit, Offset: f.Offset})
+	if f.TitleID < 0 {
+		return nil, invalid("invalid_request", "titleId must be the id of a title.")
+	}
+	items, total, err := s.store.q().list(ctx, itemFilter{UserID: userID, TitleID: f.TitleID, State: f.State, Limit: f.Limit, Offset: f.Offset})
 	if err != nil {
 		return nil, err
 	}
@@ -706,6 +717,12 @@ func (s *Service) Summary(ctx context.Context, actor Actor) (Summary, error) {
 	}
 	if sum.Usage, err = s.usage(ctx, actor.UserID, eff); err != nil {
 		return Summary{}, err
+	}
+	// Everyone may read the owner's name: a member's screen says who must say yes.
+	if name, err := s.store.q().ownerName(ctx); err != nil {
+		return Summary{}, err
+	} else if name != "" {
+		sum.Owner = &OwnerRef{Name: name}
 	}
 	return sum, nil
 }
@@ -758,8 +775,8 @@ func (s *Service) SetLimits(ctx context.Context, actor Actor, userID int64, p Li
 		return PersonInfo{}, ErrForbidden
 	}
 	for _, v := range []Patch[int]{p.HDPerWeek, p.UHDPerWeek} {
-		if v.Set && v.Value != nil && (*v.Value < 0 || *v.Value > maxPerWeek) {
-			return PersonInfo{}, invalid("invalid_limit", "A weekly limit is a whole number from 0 to "+strconv.Itoa(maxPerWeek)+".")
+		if v.Set && v.Value != nil && *v.Value != Unlimited && (*v.Value < 0 || *v.Value > maxPerWeek) {
+			return PersonInfo{}, invalid("invalid_limit", "A weekly limit is a whole number from 0 to "+strconv.Itoa(maxPerWeek)+", or unlimited.")
 		}
 	}
 	o, err := s.store.setOverrides(ctx, userID, p)

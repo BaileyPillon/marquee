@@ -25,10 +25,30 @@ func (s *Server) handleSettingsPut(w http.ResponseWriter, r *http.Request, _ *ac
 	if !decodeJSONLimit(w, r, &in, maxSettingsBody) {
 		return
 	}
-	sec, err := s.Settings.Put(r.Context(), r.PathValue("section"), in)
+	section := r.PathValue("section")
+	// Some sections are checked and tidied before they are stored (the weekly limits
+	// may be written "unlimited"; the server's public address and trusted proxies
+	// must be valid).
+	if norm := normalizers[section]; norm != nil && in != nil {
+		out, err := norm(in)
+		var bad *sectionError
+		if errors.As(err, &bad) {
+			writeError(w, http.StatusBadRequest, bad.code, bad.message)
+			return
+		}
+		if err != nil {
+			s.internalError(w, r, err)
+			return
+		}
+		in = out
+	}
+	sec, err := s.Settings.Put(r.Context(), section, in)
 	if err != nil {
 		s.settingsError(w, r, err)
 		return
+	}
+	if section == ServerSection {
+		s.forgetRuntime() // proxies and the public address take effect at once
 	}
 	writeJSON(w, http.StatusOK, sec)
 }

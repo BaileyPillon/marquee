@@ -24,6 +24,13 @@ type Want struct {
 	Episodes       []int // episode numbers of Season that are still missing
 	SeasonEpisodes int   // how many episodes the season has, for a pack's size limit (0: use len(Episodes))
 	Now            time.Time
+
+	// Music: the album an artist's release has to be. Empty Album judges the
+	// release on the artist only (the manual search with no album picked).
+	// Tracks, when known, is how many tracks the album has: it checks the size.
+	Album     string
+	AlbumYear int // the year the album came out, 0 if unknown: a release from that year ranks a little higher
+	Tracks    int
 }
 
 // Release is what Score needs to know about one result of a search, apart from

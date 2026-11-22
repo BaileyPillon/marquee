@@ -1,0 +1,103 @@
+{
+  "language": "ko",
+  "register": "합니다/하세요 체(정중하고 간결하게). 버튼은 명사형이나 '~하기' 대신 짧은 동사 어간+기 없이 '추가', '저장'처럼.",
+  "terms": {
+    "ask": {
+      "use": "요청 (명사), 요청하기 (동사); 화면 'Requests' 도 '요청'",
+      "avoid": [
+        "부탁",
+        "신청"
+      ]
+    },
+    "approve": {
+      "use": "승인",
+      "avoid": [
+        "허가"
+      ]
+    },
+    "decline": {
+      "use": "거절",
+      "avoid": [
+        "거부"
+      ]
+    },
+    "owner": {
+      "use": "소유자",
+      "avoid": [
+        "주인",
+        "오너"
+      ]
+    },
+    "admin": {
+      "use": "관리자",
+      "avoid": [
+        "어드민"
+      ]
+    },
+    "member": {
+      "use": "멤버",
+      "avoid": [
+        "회원"
+      ]
+    },
+    "library": {
+      "use": "라이브러리",
+      "avoid": [
+        "도서관",
+        "보관함"
+      ]
+    },
+    "download app": {
+      "use": "다운로드 앱",
+      "avoid": [
+        "다운로드 클라이언트"
+      ]
+    },
+    "media server": {
+      "use": "미디어 서버",
+      "avoid": []
+    },
+    "source": {
+      "use": "소스",
+      "avoid": [
+        "출처"
+      ]
+    },
+    "release": {
+      "use": "릴리스",
+      "avoid": [
+        "배포"
+      ]
+    },
+    "grab": {
+      "use": "가져오기",
+      "avoid": [
+        "잡기"
+      ]
+    },
+    "4K copy": {
+      "use": "4K 사본",
+      "avoid": [
+        "4K 복사본",
+        "4K 버전"
+      ]
+    },
+    "watchlist": {
+      "use": "워치리스트",
+      "avoid": [
+        "관심 목록"
+      ]
+    },
+    "monitor": {
+      "use": "모니터링",
+      "avoid": [
+        "감시"
+      ]
+    }
+  },
+  "notes": [
+    "Marquee 는 Marquee 그대로.",
+    "숫자+단위 사이 띄어쓰기는 한국어 관례에 따른다 (예: 3개, 5분)."
+  ],
+  "sameAsEnglish": []
+}

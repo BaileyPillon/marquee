@@ -16,6 +16,11 @@ type MusicRelease struct {
 	Track       int    `json:"track,omitempty"`
 	Title       string `json:"title,omitempty"`
 	TrackArtist string `json:"trackArtist,omitempty"` // only when it differs from Artist (compilations)
+
+	// Read by ParseMusicRelease from a release name (not from a track path).
+	Source      string `json:"source,omitempty"`      // CD, WEB, Vinyl, SACD, ...
+	Group       string `json:"group,omitempty"`       // the scene group after the last hyphen
+	Discography bool   `json:"discography,omitempty"` // a many-album pack, not one album
 }
 
 // QualityName is the short quality label: "FLAC", "FLAC-24bit", "MP3-320kbps".

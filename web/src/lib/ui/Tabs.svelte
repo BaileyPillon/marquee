@@ -6,6 +6,8 @@
 </script>
 
 <script lang="ts">
+  import { isRtl } from '../core/i18n';
+
   interface Props {
     items: TabItem[];
     /** The id of the selected item. */
@@ -32,8 +34,11 @@
     if (kind !== 'tabs') return;
     const index = items.findIndex((item) => item.id === value);
     let next = index;
-    if (event.key === 'ArrowRight') next = (index + 1) % items.length;
-    else if (event.key === 'ArrowLeft') next = (index - 1 + items.length) % items.length;
+    // The arrows follow what is on screen: in a right-to-left language "right" goes to the previous tab.
+    const forward = isRtl() ? 'ArrowLeft' : 'ArrowRight';
+    const backward = isRtl() ? 'ArrowRight' : 'ArrowLeft';
+    if (event.key === forward) next = (index + 1) % items.length;
+    else if (event.key === backward) next = (index - 1 + items.length) % items.length;
     else if (event.key === 'Home') next = 0;
     else if (event.key === 'End') next = items.length - 1;
     else return;

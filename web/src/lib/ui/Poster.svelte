@@ -72,17 +72,17 @@
      bar sit above the artwork, the type beneath it. */
   .top {
     position: absolute;
-    left: 11px;
+    inset-inline-start: 11px;
     top: 11px;
     z-index: 2;
     display: flex;
   }
   .sm .top {
-    left: 10px;
+    inset-inline-start: 10px;
     top: 10px;
   }
   .mini .top {
-    left: 8px;
+    inset-inline-start: 8px;
     top: 8px;
   }
   .body {
@@ -132,8 +132,7 @@
   }
   .progress {
     position: absolute;
-    left: 0;
-    right: 0;
+    inset-inline: 0;
     bottom: 0;
     z-index: 2;
     height: 5px;

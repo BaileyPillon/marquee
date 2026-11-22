@@ -29,8 +29,13 @@ function quality(value: unknown): string {
   return q;
 }
 
-/** The line shown for one history entry. */
+/**
+ * The line shown for one history entry. The server writes it ("Priya asked for 4K") and sends it as
+ * `text`; when it is missing (an older server) the line is built here from the particulars.
+ */
 export function historyText(item: HistoryItem): string {
+  const written = typeof item.text === 'string' ? item.text.trim() : '';
+  if (written) return written;
   const d = item.detail;
   if (typeof d === 'string' && d.trim()) return d.trim();
   const o: Record<string, unknown> = d && typeof d === 'object' ? (d as Record<string, unknown>) : {};

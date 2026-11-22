@@ -105,7 +105,7 @@
 
 <PageHeader
   title={heading}
-  subtitle={loading && items.length === 0 ? '' : total === 1 ? t('library.countOne') : t('library.count', { n: total })}
+  subtitle={loading && items.length === 0 ? '' : t('library.count', { n: total })}
 />
 
 {#if !empty}
@@ -203,7 +203,7 @@
   }
   .glyph {
     position: absolute;
-    left: 14px;
+    inset-inline-start: 14px;
     top: 13px;
     display: flex;
     color: var(--muted);
@@ -224,7 +224,8 @@
   }
   input {
     width: 100%;
-    padding: 0 14px 0 42px;
+    padding-block: 0;
+    padding-inline: 42px 14px;
   }
   input::placeholder {
     color: var(--muted);

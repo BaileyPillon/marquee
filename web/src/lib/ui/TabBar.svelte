@@ -34,14 +34,14 @@
 <style>
   .tabbar {
     position: fixed;
-    left: 0;
-    right: 0;
+    inset-inline: 0;
     bottom: 0;
     z-index: 20;
     display: flex;
     box-sizing: border-box;
     min-height: var(--tabbar-height);
-    padding: 6px 8px calc(10px + env(safe-area-inset-bottom));
+    /* Narrow side padding: five labels share the width, and a six-letter Japanese word needs 72px. */
+    padding: 6px 2px calc(10px + env(safe-area-inset-bottom));
     background: var(--rail);
     border-top: 1px solid var(--hairline);
   }
@@ -70,6 +70,8 @@
     border-radius: 15px;
   }
   .label {
+    max-width: 100%;
+    text-align: center;
     font-size: 12px;
     font-weight: 500;
     line-height: 14px;
@@ -86,7 +88,7 @@
   .count {
     position: absolute;
     top: -4px;
-    right: 6px;
+    inset-inline-end: 6px;
     box-sizing: border-box;
     min-width: 18px;
     height: 18px;

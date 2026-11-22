@@ -339,7 +339,7 @@ func TestScoreMusic(t *testing.T) {
 		{name: "MP3 320 is allowed", profile: p, title: chopin, release: album("Chopin - Ballades (1998) MP3 320kbps"), accepted: true,
 			contains: []string{"Good fit: MP3-320, lossy"}},
 		{name: "MP3 128 is not", profile: p, title: chopin, release: album("Chopin - Etudes (1985) MP3 128kbps"),
-			rejection: "Format not allowed: MP3-128 (your profile takes FLAC, MP3-320)"},
+			rejection: "Too low a quality: MP3-128 is lossy and under 192 kbps"},
 		{name: "V0 is not on the list", profile: p, title: chopin, release: album("Chopin - Etudes (1985) MP3 V0"),
 			rejection: "Format not allowed: MP3-V0 (your profile takes FLAC, MP3-320)"},
 		{name: "no format in the name", profile: p, title: chopin, release: album("Chopin - Etudes (1985)"),

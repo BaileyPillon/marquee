@@ -9,6 +9,7 @@
   import TopBar from './lib/ui/TopBar.svelte';
   import { ping } from './lib/core/api';
   import { t } from './lib/core/i18n';
+  import { localeState } from './lib/core/locale.svelte';
   import { isDesktop } from './lib/core/media';
   import { peopleState } from './lib/core/people.svelte';
   import { requestsState } from './lib/core/requests.svelte';
@@ -113,6 +114,8 @@
   }
 </script>
 
+<!-- A language change rebuilds the whole tree, so text that was formatted once is redone in the new language. -->
+{#key localeState.version}
 {#if session.status === 'loading'}
   <!-- Waiting to hear who this is: show nothing rather than a page that may be about to change. -->
   <div class="boot" role="status"><span class="sr-only">{t('boot.loading')}</span></div>
@@ -155,6 +158,7 @@
     {/if}
   </div>
 {/if}
+{/key}
 
 <style>
   .boot {
@@ -186,7 +190,7 @@
 
   .skip {
     position: absolute;
-    left: 8px;
+    inset-inline-start: 8px;
     top: 8px;
     z-index: 100;
     padding: 10px 14px;

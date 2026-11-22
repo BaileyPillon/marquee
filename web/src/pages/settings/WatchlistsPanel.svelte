@@ -8,8 +8,10 @@
   import NotSetUp from '../../lib/ui/NotSetUp.svelte';
   import Panel from '../../lib/ui/Panel.svelte';
   import SectionHead from '../../lib/ui/SectionHead.svelte';
+  import SelectField from '../../lib/ui/SelectField.svelte';
   import Skeleton from '../../lib/ui/Skeleton.svelte';
   import StatusDot from '../../lib/ui/StatusDot.svelte';
+  import Toggle from '../../lib/ui/Toggle.svelte';
   import { failureText, isRouteMissing } from '../../lib/core/catalog';
   import { onEvent, onResync } from '../../lib/core/events';
   import { formatAgo } from '../../lib/core/format';
@@ -20,9 +22,11 @@
     getWatchlists,
     linkPlexFriend,
     pollPlexLink,
+    savePlexSettings,
     startPlexLink,
     unlinkPlex,
     type PlexLinkStart,
+    type PlexSettings,
     type PlexWatchlist,
   } from '../../lib/core/serversApi';
 
@@ -166,6 +170,31 @@
     }
   }
 
+  // ---- options: whether watchlists are read, whose, who is made for a new friend, and the quality ----
+  let savingOption = $state(false);
+  let optionError = $state('');
+  let quality = $state<string>('hd');
+
+  // The select shows what the server has; a save (or a reload) puts it back in step.
+  $effect(() => {
+    quality = plex?.quality ?? 'hd';
+  });
+
+  async function setOption(change: PlexSettings): Promise<void> {
+    if (savingOption || !plex) return;
+    savingOption = true;
+    optionError = '';
+    try {
+      plex = await savePlexSettings(change);
+      onnote?.(t('watch.options.saved'));
+    } catch (err) {
+      optionError = failureText(err);
+      await load(); // show what the server really has
+    } finally {
+      savingOption = false;
+    }
+  }
+
   // ---- check now ----
   let checking = $state(false);
 
@@ -198,6 +227,40 @@
   });
 </script>
 
+{#snippet options()}
+  <h3 class="friends-head">{t('watch.options.heading')}</h3>
+  <div class="options">
+    <Toggle
+      checked={plex?.enabled ?? false}
+      label={t('watch.options.enabled')}
+      onchange={(on) => void setOption({ enabled: on })}
+    />
+    <Toggle
+      checked={plex?.includeFriends ?? false}
+      label={t('watch.options.friends')}
+      onchange={(on) => void setOption({ includeFriends: on })}
+    />
+    <Toggle
+      checked={plex?.autoCreateMembers ?? false}
+      label={t('watch.options.autoCreate')}
+      onchange={(on) => void setOption({ autoCreateMembers: on })}
+    />
+  </div>
+  <div class="quality">
+    <SelectField
+      label={t('watch.options.quality')}
+      bind:value={quality}
+      options={[
+        { value: 'hd', label: t('ask.quality.hd.short') },
+        { value: 'uhd', label: t('ask.quality.uhd.short') },
+      ]}
+      help={t('watch.options.qualityHelp')}
+      onchange={() => void setOption({ quality: quality === 'uhd' ? 'uhd' : 'hd' })}
+    />
+  </div>
+  {#if optionError}<p class="problem" role="alert">{optionError}</p>{/if}
+{/snippet}
+
 <Panel labelledby={headId} padding="18px">
   <div id="watchlists">
     <SectionHead title={t('watch.heading')} id={headId} size="md" align="center" gap={4} minHeight={36}>
@@ -221,6 +284,7 @@
     </div>
   {:else if !plex.linked}
     <p class="help">{t('watch.help')}</p>
+    {@render options()}
     {#if link}
       <div class="pin" role="status">
         <p class="pin-title">{t('watch.link.waiting')}</p>
@@ -258,6 +322,7 @@
     </p>
     <p class="last" role="status">{lastCheck}</p>
     {#if plex.lastError}<p class="problem">{t('watch.lastError', { why: plex.lastError })}</p>{/if}
+    {@render options()}
 
     {#if plex.includeFriends}
       <h3 class="friends-head">{t('watch.friends')}</h3>
@@ -385,6 +450,16 @@
     font-size: 13px;
     line-height: 18px;
     color: var(--text-3);
+  }
+  .options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 8px;
+  }
+  .quality {
+    max-width: 260px;
+    margin-top: 12px;
   }
   .friends-head {
     margin-top: 16px;

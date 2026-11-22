@@ -1,0 +1,92 @@
+{
+  "language": "sv",
+  "register": "du (vänligt och vardagligt)",
+  "terms": {
+    "ask": {
+      "use": "förfrågan (substantiv), fråga efter / önska (verb); skärmen 'Requests' är 'Förfrågningar'",
+      "avoid": [
+        "begäran",
+        "önskemål"
+      ]
+    },
+    "approve": {
+      "use": "godkänna",
+      "avoid": []
+    },
+    "decline": {
+      "use": "avslå",
+      "avoid": [
+        "neka",
+        "avvisa"
+      ]
+    },
+    "owner": {
+      "use": "ägare",
+      "avoid": []
+    },
+    "admin": {
+      "use": "Admin",
+      "avoid": [
+        "Administratör"
+      ]
+    },
+    "member": {
+      "use": "medlem",
+      "avoid": []
+    },
+    "library": {
+      "use": "bibliotek",
+      "avoid": [
+        "samling"
+      ]
+    },
+    "download app": {
+      "use": "nedladdningsapp",
+      "avoid": [
+        "nedladdningsklient",
+        "nedladdningsprogram"
+      ]
+    },
+    "media server": {
+      "use": "mediaserver",
+      "avoid": []
+    },
+    "source": {
+      "use": "källa",
+      "avoid": []
+    },
+    "release": {
+      "use": "release",
+      "avoid": [
+        "utgåva"
+      ]
+    },
+    "grab": {
+      "use": "Hämta",
+      "avoid": []
+    },
+    "4K copy": {
+      "use": "4K-kopia",
+      "avoid": [
+        "4K-version"
+      ]
+    },
+    "watchlist": {
+      "use": "bevakningslista",
+      "avoid": [
+        "watchlist"
+      ]
+    },
+    "monitor": {
+      "use": "Bevaka",
+      "avoid": [
+        "Övervaka"
+      ]
+    }
+  },
+  "notes": [
+    "Marquee förblir Marquee.",
+    "Korta knappar i imperativ ('Lägg till', 'Spara')."
+  ],
+  "sameAsEnglish": []
+}

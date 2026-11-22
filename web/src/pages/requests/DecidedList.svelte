@@ -112,7 +112,7 @@
   }
   .when {
     flex: 0 0 64px;
-    text-align: right;
+    text-align: end;
     font-size: 13px;
     font-weight: 500;
     line-height: 18px;

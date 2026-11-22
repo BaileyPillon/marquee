@@ -117,7 +117,7 @@
     text-decoration: underline;
   }
   .year {
-    margin-left: 6px;
+    margin-inline-start: 6px;
     font-weight: 500;
     color: var(--text-3);
   }

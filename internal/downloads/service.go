@@ -105,8 +105,11 @@ func (s *Service) publish(typ string, d Download) {
 	if s.hub == nil {
 		return
 	}
+	// The stream reaches every signed-in person, so it never carries a path:
+	// importStep is only the word for where the import is up to.
 	s.hub.Publish(Topic, map[string]any{
 		"type": typ, "id": d.ID, "titleId": d.TitleID, "state": d.State, "progress": d.Progress,
+		"importStep": d.ImportStep,
 	})
 }
 
@@ -537,6 +540,28 @@ func (s *Service) SetState(ctx context.Context, id int64, state, errText string)
 	}
 	if d, err := s.store.getDownload(ctx, id); err == nil {
 		s.publish(eventFor(state), d)
+	}
+	return nil
+}
+
+// SetImportStep is how the importer says where it is: step is one of the Step
+// constants ("" clears it) and target the path the files are going to (empty
+// keeps the one already stored). It only counts while the download is importing.
+// Each change is published on the stream as a "state" event so the Downloads
+// screen moves along.
+func (s *Service) SetImportStep(ctx context.Context, id int64, step, target string) error {
+	if !validStep(step) {
+		return &InvalidError{Message: "That is not an import step."}
+	}
+	ok, err := s.store.setImportStep(ctx, id, step, target, s.now())
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return nil // not importing (any more): nothing to say
+	}
+	if d, err := s.store.getDownload(ctx, id); err == nil {
+		s.publish("state", d)
 	}
 	return nil
 }

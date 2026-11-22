@@ -8,6 +8,7 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 // WantMedia reports whether a file name is media of a folder kind ("movie",
@@ -31,6 +32,8 @@ type ImportedFile struct {
 	Size       int64
 	TitleID    int64
 	EpisodeIDs []int64 // empty for a movie
+	// TrackID is the catalog track a music file is, 0 when it is not known.
+	TrackID int64
 	// Quality is the quality name (for example "Bluray-1080p"); empty keeps what
 	// the file's own name says.
 	Quality string
@@ -91,6 +94,10 @@ func (s *Service) ImportFiles(ctx context.Context, folderID int64, files []Impor
 		id := in.TitleID
 		w.TitleID = &id
 		w.TrackID = nil
+		if in.TrackID > 0 {
+			trackID := in.TrackID
+			w.TrackID = &trackID
+		}
 		w.EpisodeIDs = nil
 		if len(in.EpisodeIDs) > 0 {
 			w.EpisodeIDs = append([]int64{}, in.EpisodeIDs...)
@@ -106,6 +113,25 @@ func (s *Service) ImportFiles(ctx context.Context, folderID int64, files []Impor
 		}
 	}
 	return errors.Join(errs...)
+}
+
+// ErrNameInUse is returned when a file is given a path another row already has.
+var ErrNameInUse = errors.New("library: another file already has that name")
+
+// File returns one file row by id, or ErrNotFound.
+func (s *Service) File(ctx context.Context, id int64) (File, error) {
+	return s.store.GetFile(ctx, id)
+}
+
+// RenameFile records that the importer renamed (moved inside its folder) the file
+// with this id: the row takes the new path and the file's new modified time (so a
+// later scan sees nothing changed). Nothing on disk is touched here.
+func (s *Service) RenameFile(ctx context.Context, id int64, newRel string, mtime time.Time) error {
+	rel, err := cleanRel(newRel)
+	if err != nil {
+		return err
+	}
+	return s.store.RenameFile(ctx, id, rel, mtime.UnixNano())
 }
 
 // ForgetFiles drops the rows of files the importer removed from a folder (an

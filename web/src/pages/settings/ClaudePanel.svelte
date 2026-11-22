@@ -79,8 +79,14 @@
   const snippet = (key: string): string =>
     `claude mcp add --transport http marquee ${endpoint} --header "Authorization: Bearer ${key}"`;
 
-  /** The first sentence of a tool's description: the full text is written for Claude, not for this list. */
-  function firstSentence(text: string): string {
+  /**
+   * What the list says about a tool: the short sentence the server writes for people (`summary`).
+   * The long description is written for Claude, so an older server that sends no summary gets its
+   * first sentence instead.
+   */
+  function summaryOf(tool: { summary?: string; description: string }): string {
+    if (tool.summary) return tool.summary;
+    const text = tool.description;
     const end = text.search(/[.!?](\s|$)/);
     const sentence = end > 0 ? text.slice(0, end + 1) : text;
     return sentence.length > 160 ? `${sentence.slice(0, 157).trimEnd()}…` : sentence;
@@ -293,7 +299,7 @@
                 <code class="tool-name">{tool.name}</code>
                 <Chip tone="faint" size="micro">{t(abilityKey(tool.scope))}</Chip>
               </div>
-              <p class="tool-desc">{firstSentence(tool.description)}</p>
+              <p class="tool-desc">{summaryOf(tool)}</p>
             </li>
           {/each}
         </ul>
@@ -477,7 +483,7 @@
     overflow-wrap: anywhere;
   }
   .prefix {
-    margin-left: 6px;
+    margin-inline-start: 6px;
     font-family: var(--font-mono);
     font-size: 12.5px;
     font-weight: 400;
@@ -570,7 +576,8 @@
     display: flex;
     align-items: flex-start;
     gap: 8px;
-    margin: 6px 0 0 32px;
+    margin-block: 6px 0;
+    margin-inline: 32px 0;
     font-size: 13px;
     line-height: 18px;
     color: var(--accent);

@@ -24,6 +24,7 @@
 package requests
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -209,10 +210,11 @@ type Item struct {
 
 // ListFilter selects requests for List.
 type ListFilter struct {
-	State  string // "" means every state
-	Mine   bool   // only the caller's own (members always get only their own)
-	Limit  int    // default 50, at most 200
-	Offset int
+	State   string // "" means every state
+	Mine    bool   // only the caller's own (members always get only their own)
+	TitleID int64  // only requests for this title; 0 means every title
+	Limit   int    // default 50, at most 200
+	Offset  int
 }
 
 // List limits.
@@ -231,11 +233,18 @@ type ListResult struct {
 
 // ---- usage and limits ------------------------------------------------------
 
+// Unlimited is the number that stands for "no weekly limit" wherever a limit is
+// stored: a person's own setting (a person the owner lets ask for as much as they
+// like, whatever the default is) and the defaults. The API never shows it: a limit
+// that is not there is null, with "unlimited": true beside it.
+const Unlimited = -1
+
 // QualityUsage is one quality's asks over the last 7 days.
 type QualityUsage struct {
 	Used int `json:"used"`
-	// Limit is null when there is none.
-	Limit *int `json:"limit"`
+	// Limit is null when there is none; Unlimited says so in words.
+	Limit     *int `json:"limit"`
+	Unlimited bool `json:"unlimited"`
 	// ResetsAt is when the next ask drops out of the window (and a place frees
 	// up, if the limit is used up); null when nothing was asked.
 	ResetsAt *time.Time `json:"resetsAt"`
@@ -264,23 +273,58 @@ type Summary struct {
 		Approved int `json:"approved"`
 	} `json:"mine"`
 	Usage Usage `json:"usage"`
+	// Owner names the owner, so a member's screen can say who has to say yes. It is
+	// left out only when there is no owner yet.
+	Owner *OwnerRef `json:"owner,omitempty"`
 }
 
-// EffectiveLimits are the limits and flags that apply to a person right now.
+// OwnerRef is the owner as a summary names them.
+type OwnerRef struct {
+	Name string `json:"name"`
+}
+
+// EffectiveLimits are the limits and flags that apply to a person right now. A
+// limit that is nil means there is none; the Unlimited flags say so in words for
+// the API.
 type EffectiveLimits struct {
 	HDPerWeek      *int `json:"hdPerWeek"` // null: no limit
+	HDUnlimited    bool `json:"hdUnlimited"`
 	UHDPerWeek     *int `json:"uhdPerWeek"`
+	UHDUnlimited   bool `json:"uhdUnlimited"`
 	AutoApproveHD  bool `json:"autoApproveHD"`
 	AutoApproveUHD bool `json:"autoApproveUHD"`
 }
 
-// LimitOverrides are what the owner set for one person; null means "use the
-// default".
+// LimitOverrides are what the owner set for one person; nil means "use the
+// default". A limit holding Unlimited (-1) is "no limit for this person"; the API
+// shows that as null with the matching Unlimited flag true (see MarshalJSON), so
+// null with the flag false still means "use the default".
 type LimitOverrides struct {
-	HDPerWeek      *int  `json:"hdPerWeek"`
-	UHDPerWeek     *int  `json:"uhdPerWeek"`
-	AutoApproveHD  *bool `json:"autoApproveHD"`
-	AutoApproveUHD *bool `json:"autoApproveUHD"`
+	HDPerWeek      *int
+	UHDPerWeek     *int
+	AutoApproveHD  *bool
+	AutoApproveUHD *bool
+}
+
+// MarshalJSON writes the overrides the way the API shows them: a limit that is
+// Unlimited becomes null plus hdUnlimited/uhdUnlimited true.
+func (o LimitOverrides) MarshalJSON() ([]byte, error) {
+	split := func(p *int) (*int, bool) {
+		if p != nil && *p == Unlimited {
+			return nil, true
+		}
+		return p, false
+	}
+	hd, hdU := split(o.HDPerWeek)
+	uhd, uhdU := split(o.UHDPerWeek)
+	return json.Marshal(struct {
+		HDPerWeek      *int  `json:"hdPerWeek"`
+		HDUnlimited    bool  `json:"hdUnlimited"`
+		UHDPerWeek     *int  `json:"uhdPerWeek"`
+		UHDUnlimited   bool  `json:"uhdUnlimited"`
+		AutoApproveHD  *bool `json:"autoApproveHD"`
+		AutoApproveUHD *bool `json:"autoApproveUHD"`
+	}{hd, hdU, uhd, uhdU, o.AutoApproveHD, o.AutoApproveUHD})
 }
 
 // PersonLimits groups both.

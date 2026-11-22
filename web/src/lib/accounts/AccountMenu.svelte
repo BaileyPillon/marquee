@@ -1,6 +1,8 @@
 <script lang="ts">
   import Icon from '../ui/Icon.svelte';
-  import { t } from '../core/i18n';
+  import LanguageSheet from '../ui/LanguageSheet.svelte';
+  import { activeLanguage, t } from '../core/i18n';
+  import { nativeName } from '../core/languages';
   import { session, type Role } from '../core/session.svelte';
 
   interface Props {
@@ -18,6 +20,12 @@
   let failed = $state(false);
   let root: HTMLDivElement | undefined = $state();
   let trigger: HTMLButtonElement | undefined = $state();
+  let languageOpen = $state(false);
+
+  function openLanguage(): void {
+    open = false;
+    languageOpen = true;
+  }
 
   function close(refocus = false): void {
     open = false;
@@ -79,6 +87,11 @@
       <Icon name="settings" size={18} />
       {t('menu.settings')}
     </a>
+    <button type="button" class="item" onclick={openLanguage}>
+      <Icon name="globe" size={18} />
+      <span class="item-label">{t('menu.language')}</span>
+      <span class="item-value" lang={activeLanguage()}>{nativeName(activeLanguage())}</span>
+    </button>
     <button type="button" class="item" aria-disabled={signingOut ? 'true' : undefined} onclick={signOut}>
       <Icon name="signOut" size={18} />
       {signingOut ? t('menu.signingOut') : t('menu.signOut')}
@@ -87,6 +100,9 @@
       <p class="fail" role="alert">{t('menu.signOutFailed')}</p>
     {/if}
   </div>
+
+  <!-- Outside the panel, which is hidden while the sheet is up. -->
+  <LanguageSheet bind:open={languageOpen} onclose={() => trigger?.focus()} />
 </div>
 
 <style>
@@ -102,7 +118,7 @@
     border: 0;
     background: transparent;
     color: var(--text);
-    text-align: left;
+    text-align: start;
     cursor: pointer;
   }
   .trigger:hover {
@@ -146,6 +162,8 @@
   }
   .role {
     color: var(--muted);
+    /* " · Owner" moves to the next line as one piece instead of breaking inside the role word. */
+    white-space: nowrap;
   }
 
   .panel {
@@ -162,12 +180,11 @@
     display: none;
   }
   .rail .panel {
-    left: 0;
-    right: 0;
+    inset-inline: 0;
     bottom: calc(100% + 8px);
   }
   .phone .panel {
-    right: 0;
+    inset-inline-end: 0;
     top: calc(100% + 4px);
     min-width: 220px;
   }
@@ -206,14 +223,27 @@
     font-family: var(--font-sans);
     font-size: 14.5px;
     font-weight: 500;
-    line-height: 1;
-    text-align: left;
+    line-height: 1.25;
+    text-align: start;
     text-decoration: none;
     cursor: pointer;
   }
   .item:hover {
     background: var(--hover);
     color: var(--text);
+  }
+  .item-label {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  /* The language's own name, so a reader who lost the language can still find their way back. */
+  .item-value {
+    flex: 0 1 auto;
+    min-width: 0;
+    max-width: 55%;
+    font-size: 13px;
+    color: var(--muted);
+    overflow-wrap: anywhere;
   }
   .item[aria-disabled='true'] {
     cursor: progress;

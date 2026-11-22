@@ -91,7 +91,7 @@
       display: inline-flex;
       align-items: center;
       min-height: 44px;
-      padding-left: 12px;
+      padding-inline-start: 12px;
     }
     .scroller {
       margin: 0 -16px;

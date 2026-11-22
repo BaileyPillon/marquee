@@ -35,12 +35,16 @@
   import { getOpenTarget } from '../lib/core/serversApi';
   import { session } from '../lib/core/session.svelte';
   import { listProfiles, type Profile } from '../lib/core/sourcesApi';
+  import type { TitleSubtitleFile } from '../lib/core/subtitlesApi';
   import { heroTheme } from '../lib/core/themes';
   import { episodeFile } from '../lib/core/titleFiles';
   import { watchTitleDownloads } from '../lib/core/titleDownloads.svelte';
   import type { EpisodeState } from '../lib/core/views';
   import EpisodeSearchSheet from './title/EpisodeSearchSheet.svelte';
   import MissingSheet from './title/MissingSheet.svelte';
+  import SubtitleChips from '../lib/ui/SubtitleChips.svelte';
+  import SubtitleSheet from './title/SubtitleSheet.svelte';
+  import { watchTitleSubtitles } from '../lib/core/titleSubtitles.svelte.ts';
 
   interface Props {
     match: Match;
@@ -90,6 +94,28 @@
     }
     return map;
   });
+
+  // ---- subtitles: which languages each episode's file has; "Find subtitles" for the owner and admins ----
+  const subs = watchTitleSubtitles(() => (d?.kind === 'show' ? d.id : undefined));
+  const subsByEpisode = $derived.by(() => {
+    const map = new Map<number, TitleSubtitleFile>();
+    for (const file of subs.files) for (const id of file.episodeIds) map.set(id, file);
+    return map;
+  });
+  let subsOpen = $state(false);
+  let subsFileId = $state<number | undefined>();
+  let subsName = $state('');
+  const subsFile = $derived(subs.files.find((f) => f.fileId === subsFileId));
+
+  function findSubtitles(ep: Episode, file: TitleSubtitleFile): void {
+    subsFileId = file.fileId;
+    subsName = `${d?.name ?? ''} ${episodeCode(ep)}`.trim();
+    subsOpen = true;
+  }
+
+  function episodeCode(ep: Episode): string {
+    return `S${String(ep.season).padStart(2, '0')}E${String(ep.number).padStart(2, '0')}`;
+  }
 
   // ---- seasons and episodes ----
   const seasons = $derived(
@@ -307,7 +333,7 @@
             {#if known}
               {t('show.haveOfTotal', { have, total: episodes.length })}
             {:else}
-              {episodes.length === 1 ? t('show.episodeCountOne') : t('show.episodeCount', { n: episodes.length })}
+              {t('show.episodeCount', { n: episodes.length })}
             {/if}
           </span>
           {#if canManage}
@@ -342,6 +368,24 @@
                     <Icon name={stateIcon[row.state]} size={16} stroke={2.2} />
                     <span>{row.text}</span>
                   </div>
+                  {#if row.state === 'library'}
+                    {@const subFile = subsByEpisode.get(row.ep.id)}
+                    {#if subFile}
+                      <div class="subs-line">
+                        <SubtitleChips subtitles={subFile.subtitles} missing={subFile.missing} />
+                        {#if canManage && subFile.canSearch}
+                          <Button
+                            variant="quiet"
+                            size="xs"
+                            aria-label={t('subs.file.findAria', { name: `${d.name} ${episodeCode(row.ep)}` })}
+                            onclick={() => findSubtitles(row.ep, subFile)}
+                          >
+                            {t('subs.file.find')}
+                          </Button>
+                        {/if}
+                      </div>
+                    {/if}
+                  {/if}
                 </div>
                 <div class="ep-action">
                   {#if row.state === 'library'}
@@ -418,6 +462,16 @@
       season={season ?? 1}
       episodes={missingNow}
     />
+    {#if subsFile}
+      <SubtitleSheet
+        bind:open={subsOpen}
+        fileId={subsFile.fileId}
+        name={subsName}
+        languages={subsFile.languages}
+        subtitles={subsFile.subtitles}
+        onchanged={subs.reload}
+      />
+    {/if}
   {/if}
 {:else if notFound}
   <TitleNotFound backHref="/tv" backLabel={t('nav.tv')} />
@@ -531,14 +585,16 @@
     color: var(--text);
   }
   .state.missing {
-    padding: 3px 12px 3px 10px;
+    padding-block: 3px;
+    padding-inline: 10px 12px;
     border-radius: var(--radius-pill);
     background: var(--text);
     color: var(--ground);
     font-weight: 600;
   }
   .state.upcoming {
-    padding: 2px 12px 2px 10px;
+    padding-block: 2px;
+    padding-inline: 10px 12px;
     border-radius: var(--radius-pill);
     border: 1px dashed var(--line-soft);
     color: var(--text-2);
@@ -549,6 +605,13 @@
   }
   .state.unknown {
     color: var(--text-3);
+  }
+  .subs-line {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 10px;
+    margin-top: 6px;
   }
   .ep-action {
     flex: 0 0 88px;

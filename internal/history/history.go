@@ -56,6 +56,9 @@ type Item struct {
 	DownloadID *int64          `json:"downloadId"`
 	Event      string          `json:"event"`
 	Detail     json.RawMessage `json:"detail"`
+	// Text is the entry in plain English ("Priya asked for 4K"), built by Text from
+	// Event and Detail when the list is read. It is never stored.
+	Text string `json:"text"`
 }
 
 // Recorder is the part of the service other modules need.
@@ -130,5 +133,12 @@ func (s *Service) ForTitle(ctx context.Context, titleID int64, limit int) ([]Ite
 		limit = DefaultLimit
 	}
 	limit = min(limit, MaxLimit)
-	return s.store.ForTitle(ctx, titleID, limit)
+	items, err := s.store.ForTitle(ctx, titleID, limit)
+	if err != nil {
+		return nil, err
+	}
+	for i := range items {
+		items[i].Text = Text(items[i].Event, items[i].Detail)
+	}
+	return items, nil
 }

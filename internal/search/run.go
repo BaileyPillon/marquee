@@ -23,6 +23,7 @@ type need struct {
 	movie   bool
 	seasons map[int][]titles.Episode // season -> missing episodes, in order
 	totals  map[int]int              // season -> episodes the catalog lists
+	albums  []titles.Album           // an artist's monitored albums with no file, not just sent for download
 }
 
 func movieKey() string                 { return "movie" }
@@ -49,6 +50,16 @@ func (s *Service) needFor(ctx context.Context, c grab.Copy, d *titles.Detail) (n
 	switch d.Kind {
 	case titles.KindMovie:
 		n.movie = !have.Movie && !recent[movieKey()]
+	case titles.KindArtist:
+		haveAlbum := map[int64]bool{}
+		for _, id := range have.AlbumIDs {
+			haveAlbum[id] = true
+		}
+		for _, a := range d.Albums {
+			if a.Monitored && !haveAlbum[a.ID] && !recent[albumKey(a.ID)] {
+				n.albums = append(n.albums, a)
+			}
+		}
 	case titles.KindShow:
 		n.seasons, n.totals = map[int][]titles.Episode{}, map[int]int{}
 		haveEp := map[int64]bool{}
@@ -109,6 +120,8 @@ type run struct {
 	titles   []string // release names sent
 	bestGUID string
 	notes    []string
+	// lastDownload is the downloads row of the latest release sent.
+	lastDownload int64
 }
 
 func (r *run) note(format string, args ...any) {
@@ -126,9 +139,11 @@ func (r *run) send(ctx context.Context, sc scored, episodeIDs []int64, keys []st
 	rel.Score = sc.verdict().Score
 	rel.Reasons = sc.verdict().Reasons
 	t := grab.Target{CopyID: r.copy.ID, TitleID: r.d.ID, Kind: r.d.Kind, EpisodeIDs: episodeIDs, Quality: r.copy.Quality}
-	if _, err := g.Grab(ctx, t, rel); err != nil {
+	id, err := g.Grab(ctx, t, rel)
+	if err != nil {
 		return err
 	}
+	r.lastDownload = id
 	r.grabbed++
 	r.keys = append(r.keys, keys...)
 	r.titles = append(r.titles, sc.item.Title)
@@ -278,10 +293,6 @@ func (s *Service) SearchCopy(ctx context.Context, copyID int64) (err error) {
 		}
 	}()
 
-	if d.Kind == titles.KindArtist {
-		r.note("Music is not searched yet")
-		return nil
-	}
 	enabled, err := s.src.Enabled(ctx)
 	if err != nil {
 		return err
@@ -306,6 +317,9 @@ func (s *Service) SearchCopy(ctx context.Context, copyID int64) (err error) {
 		}
 		r.tally.add(outs)
 		return r.grabMovie(ctx, s.scoreOutcomes(j, outs, decide.Want{}))
+
+	case titles.KindArtist:
+		return r.grabAlbums(ctx)
 
 	default:
 		seasons := make([]int, 0, len(r.n.seasons))

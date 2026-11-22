@@ -6,6 +6,8 @@ import { svelte } from '@sveltejs/vite-plugin-svelte';
 export default defineConfig({
   base: '/',
   plugins: [svelte()],
+  // A catalog is one big flat object: ship it as a single JSON.parse string (smaller, faster to start).
+  json: { stringify: true },
   // Dev only (`npm run dev`): the page comes from Vite and /api goes to a running Marquee server.
   // A production build never sees this; the Go binary serves both from one origin.
   server: {
